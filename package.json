@@ -1,0 +1,17 @@
+{
+    "name": "mern-project",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "start": "concurrently \"npm run backend\" \"npm run frontend\"",
+        "backend": "cd backend && npm run dev",
+        "frontend": "cd frontend && npm run dev -- --host"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2"
+    },
+    "dependencies": {
+        "animate.css": "^4.1.1",
+        "react-hook-form": "^7.72.1"
+    }
+}

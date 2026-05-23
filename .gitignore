@@ -1,0 +1,52 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Node modules
+node_modules/
+frontend/node_modules/
+frontend/node_modulesmmmm/
+backend/node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+
+# Build files
+dist/
+build/
+frontend/dist/
+frontend/build/
+
+# Cache
+.cache/
+.vite/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Corrupt / backup git metadata (do not commit)
+.git.corrupt.backup/
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+
+# IDE
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# TypeScript
+*.tsbuildinfo
+
+# Coverage
+coverage/
