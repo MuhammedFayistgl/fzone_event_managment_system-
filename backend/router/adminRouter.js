@@ -1,40 +1,73 @@
-import express from 'express';
+import express from "express";
+import authMiddleware from "../middleware/authMiddleware.js";
+import { requireRole } from "../middleware/roleMiddleware.js";
+import { authLimiter } from "../middleware/rateLimit.middleware.js";
 
-import { deleteInvestor, fetchInvestorData, getDashboardSummary, registrationDetails, updateInvestor, uploadInvestorDetails } from "../controllers/adminController.js";
+import {
+  deleteInvestor,
+  fetchInvestorData,
+  getDashboardSummary,
+  registrationDetails,
+  updateInvestor,
+  uploadInvestorDetails,
+} from "../controllers/adminController.js";
 
-import { loginAdmin, logout, refreshToken, signupAdmin } from '../controllers/authController.js';
-import { createEvent, eventDelete, getAllEvents, getUpcomingEventsWithRegistrations, updateEvent } from '../controllers/eventController.js';
-import { verifyQR } from '../controllers/registrationController.js';
+import {
+  loginAdmin,
+  logout,
+  refreshToken,
+  signupAdmin,
+} from "../controllers/authController.js";
 
+import {
+  createEvent,
+  eventDelete,
+  getAllEvents,
+  getUpcomingEventsWithRegistrations,
+  updateEvent,
+} from "../controllers/eventController.js";
 
+import {
+  verifyQR,
+  closeRegistration,
+} from "../controllers/registrationController.js";
 
 const router = express.Router();
 
+const adminAuthEnabled = () => process.env.REQUIRE_ADMIN_AUTH !== "false";
 
-router.post("/login", loginAdmin);
-router.post("/signup", signupAdmin);
+const protect = [authMiddleware, requireRole("admin")];
+const maybeProtect = adminAuthEnabled() ? protect : [];
+
+// ================= PUBLIC (auth) =================
+router.post("/login", authLimiter, loginAdmin);
+router.post("/signup", authLimiter, signupAdmin);
 router.post("/refresh", refreshToken);
-router.post('/logout',logout)
+router.post("/logout", logout);
 
-router.post("/uploadInvestorDetails", uploadInvestorDetails);
-router.post("/getInvestorDetails", fetchInvestorData);
-router.get('/getDashboardSummary', getDashboardSummary)
-router.put('/updateInvestor/:id', updateInvestor)
-router.delete('/deleteInvestor/:id', deleteInvestor)
+// ================= PROTECTED (admin) =================
+router.post("/uploadInvestorDetails", ...maybeProtect, uploadInvestorDetails);
+router.post("/getInvestorDetails", ...maybeProtect, fetchInvestorData);
+router.get("/getDashboardSummary", ...maybeProtect, getDashboardSummary);
+router.put("/updateInvestor/:id", ...maybeProtect, updateInvestor);
+router.delete("/deleteInvestor/:id", ...maybeProtect, deleteInvestor);
 
+// Events
+router.post("/createvent", ...maybeProtect, createEvent);
+router.get("/createdevents", ...maybeProtect, getAllEvents);
+router.delete("/eventDelete/:id", ...maybeProtect, eventDelete);
+router.put("/eventedit/:id", ...maybeProtect, updateEvent);
+router.get(
+  "/getRunningEventsWithRegistrations",
+  ...maybeProtect,
+  getUpcomingEventsWithRegistrations
+);
+router.patch("/events/:id/close-registration", ...maybeProtect, closeRegistration);
 
-// Event 
+// QR check-in
+router.post("/verify-qr", ...maybeProtect, verifyQR);
 
-router.post('/createvent', createEvent)
-router.get('/createdevents', getAllEvents)
-router.delete('/eventDelete/:id', eventDelete)
-router.put('/eventedit/:id', updateEvent)
-router.get('/getRunningEventsWithRegistrations', getUpcomingEventsWithRegistrations)
-router.post("/verify-qr", verifyQR);
-
-
-
-// registration detils
-router.post("/RegistrationDetils", registrationDetails);
+// Registration reports
+router.post("/RegistrationDetils", ...maybeProtect, registrationDetails);
 
 export default router;

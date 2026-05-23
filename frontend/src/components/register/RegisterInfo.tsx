@@ -12,9 +12,8 @@ const RegisterInfo: FC<RegisterInfoProps> = ({ event } ) => {
 
     return (
         <>
-            <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
-                {/* ================= HEADER ================= */}
-                <div className="bg-gradient-to-r from-indigo-500 to-blue-600 text-white p-6 space-y-3">
+            <div className="app-card overflow-hidden">
+                <div className="bg-gradient-to-r from-indigo-500/90 to-blue-600/90 text-app-text p-6 space-y-3">
 
                     <div className="flex justify-between items-start gap-3">
                         <h1 className="text-2xl md:text-3xl font-bold leading-snug">
@@ -70,9 +69,9 @@ const RegisterInfo: FC<RegisterInfoProps> = ({ event } ) => {
                     {/* META GRID */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 
-                        <div className="bg-gray-50 p-4 rounded-xl">
-                            <p className="text-xs text-gray-500">Registration</p>
-                            <p className="font-semibold text-sm">
+                        <div className="app-card-muted p-4 rounded-xl">
+                            <p className="text-xs text-app-muted">Registration</p>
+                            <p className="font-semibold text-sm text-app-text">
                                 {event.registrationStart
                                     ? new Date(event.registrationStart).toLocaleDateString()
                                     : "N/A"}{" "}
@@ -83,23 +82,23 @@ const RegisterInfo: FC<RegisterInfoProps> = ({ event } ) => {
                             </p>
                         </div>
 
-                        <div className="bg-gray-50 p-4 rounded-xl">
-                            <p className="text-xs text-gray-500">Capacity</p>
-                            <p className="font-semibold text-sm">
+                        <div className="app-card-muted p-4 rounded-xl">
+                            <p className="text-xs text-app-muted">Capacity</p>
+                            <p className="font-semibold text-sm text-app-text">
                                 {event.maxParticipants || "Unlimited"}
                             </p>
                         </div>
 
-                        <div className="bg-gray-50 p-4 rounded-xl">
-                            <p className="text-xs text-gray-500">Refund</p>
-                            <p className="font-semibold text-sm">
+                        <div className="app-card-muted p-4 rounded-xl">
+                            <p className="text-xs text-app-muted">Refund</p>
+                            <p className="font-semibold text-sm text-app-text">
                                 {event.isRefundable ? "Allowed" : "Not Allowed"}
                             </p>
                         </div>
 
-                        <div className="bg-gray-50 p-4 rounded-xl">
-                            <p className="text-xs text-gray-500">Mode</p>
-                            <p className="font-semibold text-sm">
+                        <div className="app-card-muted p-4 rounded-xl">
+                            <p className="text-xs text-app-muted">Mode</p>
+                            <p className="font-semibold text-sm text-app-text">
                                 {event.locationType}
                             </p>
                         </div>
@@ -108,21 +107,20 @@ const RegisterInfo: FC<RegisterInfoProps> = ({ event } ) => {
 
                     {/* ================= SCHEDULE ================= */}
                     <div>
-                        <h2 className="font-bold text-gray-800 mb-3">📅 Schedule Timeline</h2>
-
-                        <div className="space-y-3 border-l-2 border-blue-200 pl-4">
+                        <h2 className="font-bold text-app-text mb-3">📅 Schedule Timeline</h2>
+                        <div className="space-y-3 border-l-2 border-app-accent/30 pl-4">
 
                             {event.eventDays?.map((d: EventDay, i: number) => (
                                 <div key={i} className="relative">
 
                                     <div className="absolute -left-[9px] top-2 w-3 h-3 bg-blue-500 rounded-full"></div>
 
-                                    <div className="bg-gray-50 p-3 rounded-xl">
-                                        <p className="font-semibold text-sm">
+                                    <div className="app-card-muted p-3 rounded-xl">
+                                        <p className="font-semibold text-sm text-app-text">
                                             {d.date ? new Date(d.date).toDateString() : "N/A"}
                                         </p>
 
-                                        <p className="text-xs text-gray-500">
+                                        <p className="text-xs text-app-muted">
                                             ⏰ {d.startTime ? new Date(d.startTime).toLocaleTimeString() : "N/A"} -{" "}
                                             {d.endTime ? new Date(d.endTime).toLocaleTimeString() : "N/A"}
                                         </p>

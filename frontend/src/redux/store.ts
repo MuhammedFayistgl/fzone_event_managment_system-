@@ -8,6 +8,7 @@ import paymentSlice from './paymentSlice.ts';
 import RunningEventsSlice from './RunningEventsSlice.ts'
 import EventRegistrationDatas from './Slice/EventRegistrationDatas.ts'
 import qrScannerSlice from './Slice/qrScannerSlice.ts'
+import themeSlice from './store/slices/themeSlice.ts'
 
 export const store = configureStore({
     reducer: {
@@ -20,6 +21,7 @@ export const store = configureStore({
         runninEvents: RunningEventsSlice,
         eventRegistorData: EventRegistrationDatas,
         scanner : qrScannerSlice,
+        theme: themeSlice,
     },
 })
 export type RootState = ReturnType<typeof store.getState>;

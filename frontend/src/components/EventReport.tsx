@@ -4,63 +4,28 @@ import { HiOutlineDownload } from "react-icons/hi";
 
 const EventReport: FC = () => {
     return (
-        <div className="w-full flex justify-center mt-8">
+        <div className="w-full space-y-5">
+            <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-app-text">Event Report</h2>
+            </div>
 
-            {/* CARD */}
-            <div className="
-        w-full max-w-lg
-        bg-white
-        rounded-2xl
-        border border-gray-200
-        shadow-sm
-        hover:shadow-md
-        transition-all duration-300
-        p-6
-        space-y-5
-      ">
+            <button
+                type="button"
+                className="w-full flex items-center justify-center gap-2 bg-app-text text-app-base py-3 rounded-xl text-sm font-medium hover:opacity-90 transition"
+            >
+                <HiOutlineDownload className="text-lg" />
+                Download Participant List (CSV)
+            </button>
 
-                {/* HEADER */}
-                <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-gray-800">
-                        Event Report
-                    </h2>
-                </div>
+            <div className="pt-2">
+                <p className="text-xs font-semibold text-app-muted tracking-wide">SETTINGS</p>
+            </div>
 
-                {/* DOWNLOAD BUTTON */}
-                <button
-                    className="
-            w-full
-            flex items-center justify-center gap-2
-            bg-gray-900 text-white
-            py-3 rounded-xl
-            text-sm font-medium
-            hover:bg-black
-            transition
-          "
-                >
-                    <HiOutlineDownload className="text-lg" />
-                    Download Participant List (CSV)
-                </button>
+            <div className="border-t border-app-border" />
 
-                {/* SETTINGS HEADER */}
-                <div className="pt-2">
-                    <p className="text-xs font-semibold text-gray-500 tracking-wide">
-                        SETTINGS
-                    </p>
-                </div>
-
-                {/* DIVIDER */}
-                <div className="border-t border-gray-200"></div>
-
-                {/* TOGGLE ROW */}
-                <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-700">
-                        Close Registration
-                    </p>
-
-                    <Toggle />
-                </div>
-
+            <div className="flex items-center justify-between">
+                <p className="text-sm text-app-text">Close Registration</p>
+                <Toggle />
             </div>
         </div>
     );

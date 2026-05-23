@@ -1,10 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import ProtectedRoute from "./routes/ProtectedRoute";
-import Header from "./Header/Header";
 import Overview from "./Body/Overview";
 import InvestorsTable from "./components/InvestorsTable";
-import NaveBarSecond from "./Header/TableHeader";
-// import LoginPage from "./components/Login";
 import SignupComponent from "./login/SiginComponent";
 import LoginComponent from "./login/LoginComponent";
 import { setAccessToken } from "./api/axios";
@@ -15,8 +12,9 @@ import EventCardDashbordDetils from "./components/running_eventCard/EventCardDas
 import QRScanner from "./pages/GetScanner";
 import AttendencePage from "./pages/attendence_Page/AttendencePage";
 import EventAttendanceDetails from "./pages/attendence_Page/EventAttendanceDetails";
-
-
+import SettingsPage from "./pages/SettingsPage";
+import UnauthorizedPage from "./pages/UnauthorizedPage";
+import AdminShell from "./layouts/AdminShell";
 
 const token = localStorage.getItem("accessToken");
 
@@ -24,26 +22,19 @@ if (token) {
   setAccessToken(token);
 }
 
-
 function App() {
   return (
-
-
     <Routes>
-
-
       <Route path="/login" element={<LoginComponent />} />
       <Route path="/signup" element={<SignupComponent />} />
 
-      {/* ADMIN */}
       <Route
         path="/"
         element={
           <ProtectedRoute role="admin">
-            <>
-              <Header />
+            <AdminShell>
               <Overview />
-            </>
+            </AdminShell>
           </ProtectedRoute>
         }
       />
@@ -52,20 +43,20 @@ function App() {
         path="/user-management"
         element={
           <ProtectedRoute role="admin">
-            <>
-              <NaveBarSecond />
+            <AdminShell>
               <InvestorsTable />
-            </>
+            </AdminShell>
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/event"
         element={
           <ProtectedRoute role="admin">
-            <>
+            <AdminShell>
               <CreateEventPage />
-            </>
+            </AdminShell>
           </ProtectedRoute>
         }
       />
@@ -74,29 +65,31 @@ function App() {
         path="/allregistrations"
         element={
           <ProtectedRoute role="admin">
-            <>
+            <AdminShell>
               <RecentRegistrationsContainer mode="full" />
-            </>
+            </AdminShell>
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/runningevent/:id"
         element={
           <ProtectedRoute role="admin">
-            <>
+            <AdminShell>
               <EventCardDashbordDetils />
-            </>
+            </AdminShell>
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/event/:id"
         element={
           <ProtectedRoute role="admin">
-            <>
+            <AdminShell>
               <EventRegisterPage />
-            </>
+            </AdminShell>
           </ProtectedRoute>
         }
       />
@@ -105,44 +98,49 @@ function App() {
         path="/gate-scanner"
         element={
           <ProtectedRoute role="admin">
-            <>
+            <AdminShell>
               <QRScanner />
-            </>
+            </AdminShell>
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/attendance-logs"
         element={
           <ProtectedRoute role="admin">
-            <>
+            <AdminShell>
               <AttendencePage />
-            </>
+            </AdminShell>
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/event-attendance/:id"
         element={
           <ProtectedRoute role="admin">
-            <>
+            <AdminShell>
               <EventAttendanceDetails />
-            </>
+            </AdminShell>
           </ProtectedRoute>
         }
       />
 
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute role="admin">
+            <AdminShell>
+              <SettingsPage />
+            </AdminShell>
+          </ProtectedRoute>
+        }
+      />
 
-      {/* Unauthorized */}
-      <Route path="/unauthorized" element={<h1>Unauthorized</h1>} />
-
+      <Route path="/unauthorized" element={<UnauthorizedPage />} />
     </Routes>
-
   );
 }
 
 export default App;
-
-
-
-//attendance-logs

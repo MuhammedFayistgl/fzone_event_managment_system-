@@ -2,6 +2,11 @@
 import eventModel from "../models/eventModel.js";
 import RegEventModel from "../models/EventRegistrationModel.js";
 import investorsModal from "../models/Investor.js";
+import {
+  buildInvestorLookupByPhone,
+  repairRegistrationInvestorIds,
+  formatRegistrationInvestor,
+} from "../utils/resolveRegistrationInvestors.js";
 
 
 
@@ -391,6 +396,11 @@ export const getUpcomingEventsWithRegistrations = async (req, res) => {
       .select("eventId phone participants createdAt investorId")
       .lean();
 
+    const investorByPhone = await buildInvestorLookupByPhone(
+      registrations.map((reg) => reg.phone)
+    );
+    await repairRegistrationInvestorIds(registrations, investorByPhone);
+
     // ================= 4. GROUP =================
     const grouped = {};
 
@@ -404,13 +414,16 @@ export const getUpcomingEventsWithRegistrations = async (req, res) => {
         phone: reg.phone,
         participants: reg.participants,
         createdAt: reg.createdAt,
-        investor: reg.investorId
-          ? {
-            name: reg.investorId.Name,
-            phone: reg.investorId.Phone_No,
-            code: reg.investorId.Code_No,
-          }
-          : null,
+        investor: (() => {
+          const resolved = formatRegistrationInvestor(reg, investorByPhone);
+          return resolved
+            ? {
+                name: resolved.Name,
+                phone: resolved.Phone_No,
+                code: resolved.Code_No,
+              }
+            : null;
+        })(),
       });
     }
 

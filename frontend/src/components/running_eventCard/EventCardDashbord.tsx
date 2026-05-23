@@ -53,26 +53,24 @@ const EventCardDashbord: React.FC = () => {
                         // whileHover={{ scale: 1.04, y: -4 }}
                         // transition={{ duration: 0.25 }}
                         onClick={() => navigate(`/runningevent/${event._id}`)}
-                        className="relative min-w-[320px] rounded-2xl p-5 
-            bg-white/70 backdrop-blur-xl border border-gray-200 
-            shadow-md hover:shadow-sm transition-all duration-300 cursor-pointer group overflow-hidden"
+                        className="relative min-w-[320px] rounded-2xl p-5 app-card shadow-md hover:shadow-sm transition-all duration-300 cursor-pointer group overflow-hidden"
                     >
                         {/* Glow Effect */}
                         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition bg-gradient-to-r from-blue-500/10 to-indigo-500/10"></div>
 
                         {/* HEADER */}
                         <div className="flex justify-between items-start relative z-10">
-                            <h3 className="text-md font-semibold text-gray-800">
+                            <h3 className="text-md font-semibold text-app-text">
                                 {event.title}
                             </h3>
 
                             {/* STATUS BADGE */}
                             <span
                                 className={`text-xs px-3 py-1 rounded-full font-medium ${status === "running"
-                                    ? "bg-green-100 text-green-600"
+                                    ? "bg-emerald-500/20 text-emerald-400"
                                     : status === "upcoming"
-                                        ? "bg-blue-100 text-blue-600"
-                                        : "bg-gray-200 text-gray-500"
+                                        ? "bg-blue-500/20 text-blue-400"
+                                        : "bg-app-surface-muted text-app-muted border border-app-border"
                                     }`}
                             >
                                 {status === "running"
@@ -84,12 +82,12 @@ const EventCardDashbord: React.FC = () => {
                         </div>
 
                         {/* DESCRIPTION */}
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2 relative z-10">
+                        <p className="text-xs text-app-muted mt-1 line-clamp-2 relative z-10">
                             {event.description}
                         </p>
 
                         {/* INFO GRID */}
-                        <div className="grid grid-cols-2 gap-3 mt-4 text-xs text-gray-600 relative z-10">
+                        <div className="grid grid-cols-2 gap-3 mt-4 text-xs text-app-muted relative z-10">
 
                             {/* DATE */}
                             <div className="flex items-center gap-2">
@@ -118,7 +116,7 @@ const EventCardDashbord: React.FC = () => {
 
                         {/* PROGRESS BAR (registration feel) */}
                         <div className="mt-4 relative z-10">
-                            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div className="w-full h-2 bg-app-surface-muted rounded-full overflow-hidden border border-app-border">
                                 <div
                                     className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
                                     style={{
@@ -129,14 +127,9 @@ const EventCardDashbord: React.FC = () => {
                         </div>
 
                         {/* FOOTER */}
-                        <div className="flex justify-between items-center mt-4 text-xs text-gray-400 relative z-10">
-                            <span>
-                                {event.totalRegistrations} registrations
-                            </span>
-
-                            <span className="group-hover:text-blue-600 transition">
-                                View →
-                            </span>
+                        <div className="flex justify-between items-center mt-4 text-xs text-app-muted relative z-10">
+                            <span>{event.totalRegistrations} registrations</span>
+                            <span className="group-hover:text-app-accent transition">View →</span>
                         </div>
                     </motion.div>
                 );

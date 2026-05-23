@@ -27,6 +27,13 @@ const investorsSchema = new mongoose.Schema(
             trim: true,
         },
 
+        Gender: {
+            type: String,
+            enum: ["Male", "Female", "Other"],
+            required: [true, "Gender required"],
+            default: "Other",
+        },
+
         role: {
             type: String,
             default: "user",
@@ -39,5 +46,6 @@ const investorsSchema = new mongoose.Schema(
 investorsSchema.index({ Code_No: 1 }, { unique: true });
 investorsSchema.index({ Phone_No: 1 }, { unique: true });
 investorsSchema.index({ Name: "text" }); // text search
+investorsSchema.index({ Gender: 1 });
 
 export default mongoose.model("investors", investorsSchema);

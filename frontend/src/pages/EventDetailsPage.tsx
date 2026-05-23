@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Avatar, Input } from "rsuite";
+import { Avatar, Input, InputGroup } from "rsuite";
 import { Search } from "lucide-react";
 import axios from "axios";
+import AppPageLayout from "../layouts/AppPageLayout";
 
 const EventDetailsPage = () => {
     const { id } = useParams();
-
     const [data, setData] = useState<any[]>([]);
     const [search, setSearch] = useState("");
 
@@ -25,67 +25,69 @@ const EventDetailsPage = () => {
     );
 
     return (
-        <div className="p-6">
-
-            {/* Header */}
-            <h1 className="text-2xl font-semibold mb-4">
-                Event Registrations
-            </h1>
-
-            {/* Search */}
+        <AppPageLayout title="Event Registrations" showGlow={false}>
             <div className="mb-4 max-w-sm">
-                <Input
-                    placeholder="Search..."
-                    prefix={<Search size={14} />}
-                    value={search}
-                    onChange={setSearch}
-                />
+                <InputGroup inside>
+                    <Input placeholder="Search..." value={search} onChange={setSearch} />
+                    <InputGroup.Addon><Search size={14} /></InputGroup.Addon>
+                </InputGroup>
             </div>
 
-            {/* Table */}
-            <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
-
-                <div className="grid grid-cols-5 px-4 py-3 text-xs font-semibold bg-gray-50">
-                    <div>User</div>
-                    <div>Phone</div>
-                    <div>Participants</div>
-                    <div>Count</div>
-                    <div>Date</div>
-                </div>
-
-                {filtered.map((item) => (
-                    <div
-                        key={item._id}
-                        className="grid grid-cols-5 px-4 py-3 border-t items-center hover:bg-gray-50 transition"
-                    >
-                        {/* Investor */}
-                        <div className="flex items-center gap-2">
-                            <Avatar circle>
-                                {item.participants[0]?.name?.[0]}
-                            </Avatar>
-                            <span className="text-sm">
-                                {item.participants[0]?.name}
-                            </span>
-                        </div>
-
-                        <div className="text-sm">{item.phone}</div>
-
-                        {/* Participants */}
-                        <div className="text-xs text-gray-600">
-                            {item.participants.map((p: any) => p.name).join(", ")}
-                        </div>
-
-                        <div className="text-sm">
-                            {item.participants.length}
-                        </div>
-
-                        <div className="text-xs text-gray-400">
-                            {new Date(item.createdAt).toLocaleDateString()}
-                        </div>
-                    </div>
-                ))}
+            <div className="app-card-flat overflow-x-auto">
+                <table className="w-full min-w-[680px] border-collapse">
+                    <thead>
+                        <tr className="border-b border-app-border bg-app-surface-muted text-xs uppercase tracking-wide text-app-muted">
+                            <th className="px-4 py-3 text-left font-medium align-middle w-[28%]">User</th>
+                            <th className="px-4 py-3 text-left font-medium align-middle w-[16%]">Phone</th>
+                            <th className="px-4 py-3 text-left font-medium align-middle w-[30%]">Participants</th>
+                            <th className="px-4 py-3 text-left font-medium align-middle w-[10%]">Count</th>
+                            <th className="px-4 py-3 text-left font-medium align-middle w-[16%]">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filtered.length === 0 ? (
+                            <tr>
+                                <td colSpan={5} className="px-4 py-10 text-center text-app-muted">
+                                    No registrations found
+                                </td>
+                            </tr>
+                        ) : (
+                            filtered.map((item) => (
+                                <tr
+                                    key={item._id}
+                                    className="border-t border-app-border hover:bg-[var(--color-card-hover)] transition-colors"
+                                >
+                                    <td className="px-4 py-3 align-middle">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <Avatar circle className="shrink-0">
+                                                {item.participants[0]?.name?.[0]}
+                                            </Avatar>
+                                            <span className="text-sm text-app-text truncate">
+                                                {item.participants[0]?.name}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3 align-middle text-sm text-app-text whitespace-nowrap">
+                                        {item.phone}
+                                    </td>
+                                    <td className="px-4 py-3 align-middle text-xs text-app-secondary">
+                                        <span className="line-clamp-2">
+                                            {item.participants.map((p: any) => p.name).join(", ")}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3 align-middle text-sm text-app-text">
+                                        {item.participants.length}
+                                    </td>
+                                    <td className="px-4 py-3 align-middle text-xs text-app-muted whitespace-nowrap">
+                                        {new Date(item.createdAt).toLocaleDateString()}
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
             </div>
-        </div>
+        </AppPageLayout>
     );
 };
 

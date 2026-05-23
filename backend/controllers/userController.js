@@ -3,8 +3,13 @@ import mongoose from "mongoose";
 import eventModel from "../models/eventModel.js";
 import RegEventModel from "../models/EventRegistrationModel.js";
 import Investor from "../models/Investor.js";
-import investorsModal from "../models/Investor.js"
+import investorsModal from "../models/Investor.js";
 import Payment from "../models/paymentModel.js";
+import {
+  normalizePhone,
+  investorPhoneQuery,
+  registrationPhoneQuery,
+} from "../utils/phone.js";
 
 
 // controllers/investorController.js
@@ -13,24 +18,19 @@ export const checkInvestor = async (req, res) => {
   try {
     const { phone, eventId } = req.body;
 
-    // ✅ Clean + validate + convert
-    const cleanedString = String(phone).replace(/\D/g, "");
+    const normalized = normalizePhone(phone);
 
-    if (cleanedString.length !== 10) {
+    if (!normalized.valid) {
       return res.status(400).json({
         success: false,
-        message: "Invalid phone number",
+        message: normalized.message,
       });
     }
 
-    const cleanPhone = Number(cleanedString);
-
-    console.log("phone:", cleanPhone);
-
     // ================= INVESTOR FIND =================
-    const investor = await investorsModal.findOne({
-      Phone_No: cleanPhone,
-    });
+    const investor = await investorsModal.findOne(
+      investorPhoneQuery(normalized)
+    );
 
     if (!investor) {
       return res.status(404).json({
@@ -39,13 +39,13 @@ export const checkInvestor = async (req, res) => {
       });
     }
 
-    // 🔥 ================= NEW: CHECK REGISTRATION =================
+    // ================= CHECK REGISTRATION =================
     let registrationData = null;
 
     if (eventId) {
       const existing = await RegEventModel.findOne({
         eventId,
-        phone: cleanPhone,
+        ...registrationPhoneQuery(normalized),
       });
 
       if (existing) {

@@ -6,7 +6,14 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "seed:admin": "node scripts/seedAdmin.js",
+    "import:investors": "node scripts/importInvestorsFromExcel.js --confirm",
+    "import:investors:dry": "node scripts/importInvestorsFromExcel.js --dry-run",
+    "import:investors:revert": "node scripts/revertInvestorsImport.js",
+    "registrations:repair": "node scripts/repairRegistrationInvestors.js",
+    "registrations:cleanup:dry": "node scripts/cleanupOrphanRegistrations.js --dry-run",
+    "registrations:cleanup": "node scripts/cleanupOrphanRegistrations.js --confirm"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +26,7 @@
     "debug": "~2.6.9",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "express-rate-limit": "^7.5.1",
     "http-errors": "~1.6.3",
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.1.1",
@@ -29,6 +37,7 @@
     "qrcode": "^1.5.4",
     "razorpay": "^2.9.6",
     "redis": "^5.11.0",
-    "uuid": "^14.0.0"
+    "uuid": "^14.0.0",
+    "xlsx": "^0.18.5"
   }
 }

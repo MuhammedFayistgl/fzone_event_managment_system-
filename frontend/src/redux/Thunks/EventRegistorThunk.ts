@@ -36,6 +36,7 @@ export const deleteRegisteredGuest = createAsyncThunk(
     data: {
       registrationId: string;
       guestIndex: number;
+      phone: string;
     },
     { rejectWithValue }
   ) => {

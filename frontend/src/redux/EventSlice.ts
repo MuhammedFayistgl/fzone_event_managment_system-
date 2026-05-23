@@ -244,7 +244,10 @@ const slice = createSlice({
       .addCase(closeEventRegistration.fulfilled, (state, action) => {
         state.loading = false;
 
-        const updatedEvent = action.payload.event;
+        const updatedEvent =
+          action.payload?.data || action.payload?.event;
+
+        if (!updatedEvent) return;
 
         state.events = state.events.map((event: any) =>
           event._id === updatedEvent._id ? updatedEvent : event

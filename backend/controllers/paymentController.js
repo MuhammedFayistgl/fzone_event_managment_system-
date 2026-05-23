@@ -4,6 +4,7 @@ import * as dotenv from "dotenv";
 import eventModel from "../models/eventModel.js";
 
 import Payment from "../models/paymentModel.js";
+import { normalizePhone } from "../utils/phone.js";
 dotenv.config();
 
 
@@ -24,14 +25,16 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    const cleanPhone = String(phone).replace(/\D/g, "");
+    const normalized = normalizePhone(phone);
 
-    if (cleanPhone.length !== 10) {
+    if (!normalized.valid) {
       return res.status(400).json({
         success: false,
-        message: "Invalid phone number",
+        message: normalized.message,
       });
     }
+
+    const cleanPhone = normalized.string;
 
     const event = await eventModel.findById(eventId);
 
@@ -223,7 +226,16 @@ export const markPaymentFailed = async (req, res) => {
   try {
     const { eventId, phone } = req.body;
 
-    const cleanPhone = String(phone).replace(/\D/g, "");
+    const normalized = normalizePhone(phone);
+
+    if (!normalized.valid) {
+      return res.status(400).json({
+        success: false,
+        message: normalized.message,
+      });
+    }
+
+    const cleanPhone = normalized.string;
 
     await Payment.updateMany(
       {
@@ -263,14 +275,16 @@ export const getPaymentStatus = async (req, res) => {
       });
     }
 
-    const cleanPhone = String(phone).replace(/\D/g, "");
+    const normalized = normalizePhone(phone);
 
-    if (cleanPhone.length !== 10) {
+    if (!normalized.valid) {
       return res.status(400).json({
         success: false,
-        message: "Invalid phone number",
+        message: normalized.message,
       });
     }
+
+    const cleanPhone = normalized.string;
 
     // ================= FIND PAYMENT =================
     const payment = await Payment.findOne({

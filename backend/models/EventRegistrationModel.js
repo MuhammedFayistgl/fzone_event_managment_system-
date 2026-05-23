@@ -22,6 +22,19 @@ const registrationSchema = new mongoose.Schema(
       index: true,
     },
 
+    investorName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    investorCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: "",
+    },
+
     participants: [
       {
         name: { type: String, required: true },

@@ -77,11 +77,8 @@ const qrScannerSlice =
                 .addCase(
                     verifyQrCode.fulfilled,
                     (state, action: any) => {
-
                         state.loading = false;
-
                         state.success = true;
-
                         state.currentScan =
                             action.payload.data;
 

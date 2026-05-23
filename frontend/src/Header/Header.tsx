@@ -1,14 +1,19 @@
 import type { FC } from 'react';
 import { Navbar, Menu, Avatar, Drawer } from 'rsuite';
+import { Settings, Moon, Sun } from 'lucide-react';
 import Swal from 'sweetalert2'
 import API from '../api/axios';
 import { useNavigate } from 'react-router';
+import { useAppDispatch, useAppSelector } from '../hooks/hooks';
+import { toggleTheme } from '../redux/store/slices/themeSlice';
 
 
 interface HeaderProps { }
 
 const Header: FC<HeaderProps> = () => {
     const navigate = useNavigate()
+    const dispatch = useAppDispatch()
+    const themeMode = useAppSelector((s) => s.theme.mode)
 
     const logOut = () => {
         Swal.fire({
@@ -23,27 +28,23 @@ const Header: FC<HeaderProps> = () => {
 
             if (result.isConfirmed) {
 
-                // ✅ remove token
                 localStorage.removeItem("accessToken");
 
-                // ✅ optional backend logout API
                 await API.post("/admin/logout");
 
-                // ✅ success message
                 await Swal.fire({
                     title: "Logged Out!",
                     text: "Successfully logged out.",
                     icon: "success"
                 });
 
-                // ✅ redirect
                 navigate("/login");
             }
         });
     };
 
     return (<>
-        <Navbar>
+        <Navbar className="admin-navbar">
             <Navbar.Content>
                 {({ onClose }) => {
                     return (
@@ -55,24 +56,45 @@ const Header: FC<HeaderProps> = () => {
                                 </Drawer.Header>
                                 <Drawer.Body>
                                     <Menu onSelect={onClose}>
-                                        <Menu.Item>Docs</Menu.Item>
-                                        <Menu.Item>Components</Menu.Item>
-                                        <Menu.Item>Tools</Menu.Item>
+                                        <Menu.Item onClick={() => navigate("/")}>Overview</Menu.Item>
+                                        <Menu.Item onClick={() => navigate("/settings")}>Settings</Menu.Item>
                                     </Menu>
                                 </Drawer.Body>
                             </Navbar.Drawer>
-                            <Navbar.Brand href="#">
+                            <Navbar.Brand href="#" onClick={(e) => { e.preventDefault(); navigate("/"); }}>
                                 <Avatar src="src\assets\F-zone logo only_ png.svg" circle size="sm" />
-                                {/* <Text color="blue" fontFamily={'ui-monospace'} size="">Admin Console</Text> */}
                             </Navbar.Brand>
                         </>
                     );
                 }}
             </Navbar.Content>
 
-            {/* <Avatar src="src\assets\F-zone logo only_ png.svg" circle size="sm" /> */}
-            <div onClick={logOut}>
-                Sign Out </div>
+            <div className="flex items-center gap-4">
+                <button
+                    type="button"
+                    onClick={() => dispatch(toggleTheme())}
+                    className="flex items-center justify-center w-9 h-9 rounded-xl border border-app-border bg-app-surface-muted text-app-secondary hover:text-app-accent hover:border-app-border-strong transition"
+                    title={themeMode === "dark" ? "Switch to light" : "Switch to dark"}
+                >
+                    {themeMode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => navigate("/settings")}
+                    className="flex items-center gap-1.5 text-sm text-app-muted hover:text-app-accent transition"
+                    title="Settings"
+                >
+                    <Settings size={18} />
+                    <span className="hidden sm:inline">Settings</span>
+                </button>
+                <button
+                    type="button"
+                    onClick={logOut}
+                    className="text-sm text-app-muted hover:text-red-500 transition cursor-pointer"
+                >
+                    Sign Out
+                </button>
+            </div>
         </Navbar>
 
     </>);

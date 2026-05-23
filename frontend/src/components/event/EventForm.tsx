@@ -150,14 +150,14 @@ export default function EventForm({ errors }: any) {
       </div> */}
 
       {/* ================= EVENT DAYS ================= */}
-      <div className="bg-gray-50 p-4 rounded-xl space-y-4">
+      <div className="app-card-muted p-4 rounded-xl space-y-4">
         <div className="flex justify-between items-center">
-          <h3 className="font-semibold">Event Schedule</h3>
+          <h3 className="font-semibold text-app-text">Event Schedule</h3>
           <Button size="sm" onClick={addDay}>+ Add Day</Button>
         </div>
 
         {eventDays.map((day, i) => (
-          <div key={day.id} className="bg-white p-4 rounded-lg shadow space-y-3">
+          <div key={day.id} className="app-card-muted p-4 space-y-3">
 
             <DatePicker
               name={`eventDays.${i}.date`}

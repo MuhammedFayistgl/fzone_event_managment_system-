@@ -88,9 +88,8 @@ export default function EventRegisterPagePro() {
   if (!event?._id) {
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-
-        <div className="bg-white px-6 py-5 rounded-2xl shadow text-gray-500 font-medium">
+        <div className="app-page min-h-[calc(100vh-56px)] flex items-center justify-center">
+        <div className="app-card px-6 py-5 shadow text-app-muted font-medium">
           Loading Event...
         </div>
 
@@ -368,7 +367,7 @@ export default function EventRegisterPagePro() {
 
   return (
 
-    <div className="min-h-screen bg-gray-100 py-10 px-3 flex justify-center">
+    <div className="relative min-h-[calc(100vh-56px)] py-10 px-3 flex justify-center">
 
       <div className="w-full max-w-5xl space-y-6">
 
@@ -384,15 +383,14 @@ export default function EventRegisterPagePro() {
 
         {!isClosed && (
 
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 space-y-5">
-
-            <h2 className="text-xl font-bold text-gray-800">
+          <div className="app-card p-6 space-y-5">
+            <h2 className="text-xl font-bold text-app-text">
               Book Your Seat
             </h2>
 
             <div className="max-w-xl">
 
-              <label className="text-sm font-medium text-gray-600 mb-2 block">
+              <label className="text-sm font-medium text-app-muted mb-2 block">
                 Mobile Number
               </label>
 
@@ -451,7 +449,7 @@ export default function EventRegisterPagePro() {
           !isPaymentSuccess &&
           !isClosed && (
 
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-orange-200 space-y-4">
+            <div className="app-card p-6 border-orange-300/50 space-y-4">
 
               <h2 className="text-lg font-bold">
                 Payment Required
@@ -492,13 +490,9 @@ export default function EventRegisterPagePro() {
 
         {!isClosed && (
 
-          <div className="bg-gradient-to-r from-neutral-700 to-neutral-900 p-6 rounded-3xl text-white shadow-lg">
-
-            <h2 className="text-lg font-bold">
-              Confirm Booking
-            </h2>
-
-            <p className="text-sm text-gray-300 mt-1 mb-4">
+          <div className="app-card-raised p-6 border border-app-border-strong">
+            <h2 className="text-lg font-bold text-app-text">Confirm Booking</h2>
+            <p className="text-sm text-app-secondary mt-1 mb-4">
               Please verify all details before submitting
             </p>
 

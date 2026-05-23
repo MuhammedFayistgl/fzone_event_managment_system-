@@ -7,6 +7,7 @@ import { createEvent, fetchCreatedEvents, updateEvent } from "../redux/EventThun
 import { eventSchema } from "../validators/eventSchema";
 import { normalizeZodErrors } from "../util/erorrNormalizer";
 import toast from "react-hot-toast";
+import AppPageLayout from "../layouts/AppPageLayout";
 
 export default function CreateEventPage() {
   const dispatch = useAppDispatch();
@@ -72,35 +73,21 @@ if (!result.success) {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-4 lg:p-6 bg-gray-100 min-h-screen">
-
-      {/* LEFT - FORM */}
-      <div className="bg-white p-4 lg:p-6 rounded-xl shadow space-y-4">
-        <h1 className="text-xl font-bold">Create Event</h1>
-
-        <EventForm errors={errors} />
-
-        {apiError && <div className="text-red-500">{apiError}</div>}
-
-        <Button
-          appearance="primary"
-          loading={loading}
-          onClick={handleSubmit}
-          block
-        >
-          Publish Event
-        </Button>
-      </div>
-
-      {/* RIGHT - LIST */}
-      <div className="bg-white p-4 lg:p-6 rounded-xl shadow flex flex-col">
-        <h1 className="text-xl font-bold mb-4">Events</h1>
-
-        <div >
+    <AppPageLayout title="Event Management" embedded showGlow={false}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="app-card p-4 lg:p-6 space-y-4">
+          <h2 className="text-xl font-bold text-app-text">Create Event</h2>
+          <EventForm errors={errors} />
+          {apiError && <div className="text-red-500">{apiError}</div>}
+          <Button appearance="primary" loading={loading} onClick={handleSubmit} block>
+            Publish Event
+          </Button>
+        </div>
+        <div className="app-card p-4 lg:p-6 flex flex-col">
+          <h2 className="text-xl font-bold mb-4 text-app-text">Events</h2>
           <EventList events={events} onRefresh={loadEvents} />
         </div>
       </div>
-
-    </div>
+    </AppPageLayout>
   );
 }

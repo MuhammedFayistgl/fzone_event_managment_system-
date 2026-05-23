@@ -28,14 +28,12 @@ const model = Schema.Model({
 });
 
 const LoginComponent = () => {
-
     const [formValue, setFormValue] = useState<LoginFormType>({
         email: "",
         password: ""
     });
 
     const formRef = useRef<FormInstance | null>(null);
-
     const dispatch = useDispatch<AppDispatch>();
     const navigate = useNavigate();
 
@@ -44,17 +42,13 @@ const LoginComponent = () => {
     };
 
     const handleSubmit = async () => {
-
         if (!formRef.current?.check()) return;
 
         try {
             const res = await dispatch(LoginAdmin(formValue)).unwrap() as { accessToken: string };
-
             localStorage.setItem("accessToken", res.accessToken);
             setAccessToken(res.accessToken);
-
             navigate("/");
-
         } catch (err: unknown) {
             const error = err as any;
             alert(error?.response?.data?.message || "Login Failed");
@@ -62,38 +56,38 @@ const LoginComponent = () => {
     };
 
     return (
-        <Container style={{ height: "100vh" }}>
-            <Content>
-                <Center style={{ height: "100%" }}>
-                    <Panel bordered style={{ width: 320, padding: 20 }}>
-                        <h3 style={{ textAlign: "center" }}>Login</h3>
-
-                        <Form
-                            ref={formRef}
-                            fluid
-                            model={model}
-                            formValue={formValue}
-                            onChange={handleChange}
-                            onSubmit={handleSubmit}
-                        >
-                            <Form.Group>
-                                <Form.Label>Email</Form.Label>
-                                <Form.Control name="email" />
-                            </Form.Group>
-
-                            <Form.Group>
-                                <Form.Label>Password</Form.Label>
-                                <Form.Control accepter={PasswordInput} name="password" />
-                            </Form.Group>
-
-                            <Button appearance="primary" block type="submit">
-                                Login
-                            </Button>
-                        </Form>
-                    </Panel>
-                </Center>
-            </Content>
-        </Container>
+        <div className="app-page min-h-screen flex items-center justify-center">
+            <div className="app-glow" aria-hidden />
+            <Container className="relative z-10" style={{ height: "auto" }}>
+                <Content>
+                    <Center>
+                        <Panel bordered className="app-card" style={{ width: 360, padding: 24 }}>
+                            <h3 className="text-center text-app-text font-bold mb-4">Login</h3>
+                            <Form
+                                ref={formRef}
+                                fluid
+                                model={model}
+                                formValue={formValue}
+                                onChange={handleChange}
+                                onSubmit={handleSubmit}
+                            >
+                                <Form.Group>
+                                    <Form.Label>Email</Form.Label>
+                                    <Form.Control name="email" />
+                                </Form.Group>
+                                <Form.Group>
+                                    <Form.Label>Password</Form.Label>
+                                    <Form.Control accepter={PasswordInput} name="password" />
+                                </Form.Group>
+                                <Button appearance="primary" block type="submit">
+                                    Login
+                                </Button>
+                            </Form>
+                        </Panel>
+                    </Center>
+                </Content>
+            </Container>
+        </div>
     );
 };
 

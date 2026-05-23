@@ -4,10 +4,9 @@ export const PaymentSuccess = () => {
     return (
         <>
 
-            <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-5 rounded-2xl shadow-lg border border-green-300 animate-pulse">
-
+            <div className="app-card-raised bg-gradient-to-r from-emerald-600/90 to-green-600/90 text-app-text p-5 border border-emerald-500/30">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-white text-green-600 flex items-center justify-center rounded-full font-bold text-lg shadow">
+                    <div className="w-10 h-10 bg-app-surface text-emerald-500 flex items-center justify-center rounded-full font-bold text-lg shadow">
                         ✓
                     </div>
 

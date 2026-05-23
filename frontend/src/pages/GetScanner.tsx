@@ -1,6 +1,6 @@
 
 
-import React, {
+import {
     useEffect,
     useRef,
     useState,
@@ -36,6 +36,7 @@ import {
     verifyQrCode,
 } from "../redux/Thunks/qrScannerThunk";
 import { resetScannerState } from "../redux/Slice/qrScannerSlice";
+import { getRegistrationInvestorName } from "../utils/getRegistrationInvestorName";
 
 
 
@@ -90,22 +91,42 @@ const GateScannerUltra = () => {
         useState(false);
 
     // ======================================================
-    // START CAMERA
+    // CLEANUP ON UNMOUNT (camera must start via user tap on mobile)
     // ======================================================
 
     useEffect(() => {
-
-        startScanner();
-
         return () => {
-
             stopScanner();
-
             clearTimeout(timeoutRef.current);
-
         };
-
     }, []);
+
+    const getCameraErrorMessage = (err: unknown) => {
+        const message =
+            err instanceof Error ? err.message : "Camera failed";
+
+        if (!window.isSecureContext) {
+            return "Camera needs HTTPS. Open https:// (not http://) and accept the security warning once.";
+        }
+
+        if (/NotAllowedError|Permission/i.test(message)) {
+            return "Camera permission denied. Allow camera in browser settings and tap Open Camera again.";
+        }
+
+        if (/NotFoundError|No camera/i.test(message)) {
+            return "No camera found on this device.";
+        }
+
+        return message;
+    };
+
+    const qrScanConfig = {
+        fps: 10,
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+            const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.72);
+            return { width: size, height: size };
+        },
+    };
 
     // ======================================================
     // START SCANNER
@@ -114,6 +135,12 @@ const GateScannerUltra = () => {
     const startScanner = async () => {
 
         try {
+            if (!window.isSecureContext) {
+                setCameraError(getCameraErrorMessage(new Error("insecure")));
+                toast.error("Use https:// URL for camera on mobile");
+                return;
+            }
+
             const readerElement = document.getElementById("reader");
 
             if (readerElement) {
@@ -123,94 +150,24 @@ const GateScannerUltra = () => {
             // ======================================================
             // PREVENT MULTIPLE SCANNERS
             // ======================================================
-
             if (scannerRef.current) {
-
                 try {
-
                     await scannerRef.current.stop();
-
                     await scannerRef.current.clear();
-
                 } catch (e) {
-
                     console.log(e);
-
                 }
-
             }
-
             setIsStarting(true);
-
             setCameraError("");
-
-            // ======================================================
-            // GET CAMERAS
-            // ======================================================
-
-            const cameras =
-                await Html5Qrcode.getCameras();
-
-            if (!cameras.length) {
-
-                setCameraError(
-                    "No camera device found"
-                );
-
-                toast.error(
-                    "No camera available"
-                );
-
-                return;
-
-            }
-
-            // ======================================================
-            // SELECT BACK CAMERA
-            // ======================================================
-
-            const backCamera =
-                cameras.find((c) =>
-                    c.label
-                        .toLowerCase()
-                        .includes("back")
-                ) || cameras[0];
-
-            // ======================================================
-            // CREATE SCANNER
-            // ======================================================
+            setCameraReady(false);
 
             const scanner =
                 new Html5Qrcode("reader");
 
             scannerRef.current = scanner;
 
-            // ======================================================
-            // START CAMERA
-            // ======================================================
-
-            await scanner.start(
-
-                backCamera.id,
-
-                {
-                    fps: 10,
-
-
-
-                    aspectRatio: 1,
-
-                    disableFlip: false,
-
-
-                },
-
-                // ======================================================
-                // ON SCAN SUCCESS
-                // ======================================================
-
-                async (decodedText) => {
-
+            const onScanSuccess = async (decodedText: string) => {
                     // =====================================
                     // PREVENT MULTIPLE RAPID SCANS
                     // =====================================
@@ -329,34 +286,44 @@ const GateScannerUltra = () => {
 
                         }, 2500);
 
-                },
+                };
 
-                // ======================================================
-                // ON SCAN ERROR
-                // ======================================================
+            const tryStart = async (cameraIdOrConfig: string | { facingMode: string }) => {
+                await scanner.start(
+                    cameraIdOrConfig,
+                    qrScanConfig,
+                    onScanSuccess,
+                    () => { }
+                );
+            };
 
-                () => { }
+            // Mobile: back camera via facingMode (works before labels are available)
+            try {
+                await tryStart({ facingMode: "environment" });
+            } catch {
+                const cameras = await Html5Qrcode.getCameras();
+                if (!cameras.length) {
+                    throw new Error("No camera device found");
+                }
 
-            );
+                const backCamera =
+                    cameras.find((c) =>
+                        /back|rear|environment/i.test(c.label)
+                    ) || cameras[cameras.length - 1];
 
-            // ======================================================
-            // CAMERA READY
-            // ======================================================
+                await tryStart(backCamera.id);
+            }
 
             setCameraReady(true);
 
-        } catch (err: any) {
+        } catch (err: unknown) {
 
             console.log(err);
 
-            setCameraError(
-                err?.message ||
-                "Camera failed"
-            );
+            const msg = getCameraErrorMessage(err);
+            setCameraError(msg);
 
-            toast.error(
-                "Unable to access camera"
-            );
+            toast.error("Unable to access camera");
 
         } finally {
 
@@ -364,6 +331,10 @@ const GateScannerUltra = () => {
 
         }
 
+    };
+
+    const handleOpenCamera = () => {
+        void startScanner();
     };
 
     // ======================================================
@@ -475,15 +446,7 @@ const GateScannerUltra = () => {
 
     return (
 
-        <div className="min-h-screen bg-[#050816] relative overflow-hidden flex items-center justify-center px-4 py-10">
-
-            {/* ===================================== */}
-            {/* BACKGROUND GLOW */}
-            {/* ===================================== */}
-
-            <div className="absolute top-[-150px] left-[-120px] w-[450px] h-[450px] bg-cyan-500/20 rounded-full blur-[120px]" />
-
-            <div className="absolute bottom-[-150px] right-[-120px] w-[450px] h-[450px] bg-purple-600/20 rounded-full blur-[120px]" />
+        <div className="relative min-h-[calc(100vh-56px)] overflow-hidden flex items-center justify-center px-4 py-10">
 
             {/* ===================================== */}
             {/* MAIN CARD */}
@@ -507,38 +470,33 @@ const GateScannerUltra = () => {
                     duration: 0.4,
                 }}
 
-                className="relative z-10 w-full max-w-md rounded-[32px] border border-white/10 bg-white/5 backdrop-blur-2xl p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]"
+                className="relative z-10 w-full max-w-md rounded-[32px] border border-app-border-strong app-card-raised p-5"
             >
 
                 {/* ===================================== */}
                 {/* HEADER */}
                 {/* ===================================== */}
-
                 <div className="text-center mb-5">
-
                     <div className="flex justify-center items-center gap-2">
-
                         <ShieldCheck
                             size={24}
                             className="text-cyan-400"
                         />
 
-                        <h1 className="text-2xl font-bold text-white">
+                        <h1 className="text-2xl font-bold text-app-text">
                             Gate Check-in
                         </h1>
 
                     </div>
 
-                    <p className="text-sm text-gray-400 mt-1">
+                    <p className="text-sm text-app-muted mt-1">
                         Secure QR Verification System
                     </p>
 
                 </div>
-
                 {/* ===================================== */}
                 {/* USER CARD */}
                 {/* ===================================== */}
-
                 <AnimatePresence>
 
                     {currentScan && (
@@ -572,15 +530,11 @@ const GateScannerUltra = () => {
 
                                 <div>
 
-                                    <h2 className="text-lg font-semibold text-white">
-                                        {
-                                            currentScan
-                                                ?.investor
-                                                ?.Full_Name
-                                        }
+                                    <h2 className="text-lg font-semibold text-app-text">
+                                        {getRegistrationInvestorName(currentScan)}
                                     </h2>
 
-                                    <p className="text-sm text-gray-300">
+                                    <p className="text-sm text-app-muted">
                                         {
                                             currentScan?.phone
                                         }
@@ -612,25 +566,25 @@ const GateScannerUltra = () => {
 
                             <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
 
-                                <div className="bg-white/5 rounded-xl p-3">
+                                <div className="bg-app-surface-muted rounded-xl p-3">
 
-                                    <p className="text-gray-400">
+                                    <p className="text-app-muted">
                                         Gate
                                     </p>
 
-                                    <p className="text-white mt-1">
+                                    <p className="text-app-text mt-1">
                                         Main Gate
                                     </p>
 
                                 </div>
 
-                                <div className="bg-white/5 rounded-xl p-3">
+                                <div className="bg-app-surface-muted rounded-xl p-3">
 
-                                    <p className="text-gray-400">
+                                    <p className="text-app-muted">
                                         Time
                                     </p>
 
-                                    <p className="text-white mt-1">
+                                    <p className="text-app-text mt-1">
                                         {
                                             new Date()
                                                 .toLocaleTimeString()
@@ -677,10 +631,51 @@ const GateScannerUltra = () => {
         "
                     />
 
+                    {/* Tap to open — required on mobile (user gesture + HTTPS) */}
+                    {!cameraReady && (
+                        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/80 p-6 text-center">
+                            {isStarting ? (
+                                <>
+                                    <Loader2
+                                        size={48}
+                                        className="animate-spin text-cyan-400"
+                                    />
+                                    <p className="mt-4 text-app-text text-sm">
+                                        Opening camera...
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <ScanLine
+                                        size={48}
+                                        className="text-cyan-400 mb-4"
+                                    />
+                                    <p className="text-app-text text-sm mb-1">
+                                        Camera is off until you allow access
+                                    </p>
+                                    <p className="text-app-muted text-xs mb-5 max-w-[260px]">
+                                        On phone use{" "}
+                                        <span className="text-cyan-300">https://</span>{" "}
+                                        URL (not http)
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={handleOpenCamera}
+                                        className="h-12 px-8 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-app-base font-semibold flex items-center justify-center gap-2 transition-all"
+                                    >
+                                        <ScanLine size={18} />
+                                        Open Camera
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    )}
+
                     {/* ===================================== */}
                     {/* SCAN OVERLAY */}
                     {/* ===================================== */}
 
+                    {cameraReady && (
                     <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
 
                         {/* DARK SHADE */}
@@ -785,6 +780,7 @@ const GateScannerUltra = () => {
                         </motion.div>
 
                     </div>
+                    )}
 
                     {/* ===================================== */}
                     {/* STATUS OVERLAY */}
@@ -834,7 +830,7 @@ const GateScannerUltra = () => {
                                             className="animate-spin text-cyan-400"
                                         />
 
-                                        <p className="mt-4 text-white font-medium">
+                                        <p className="mt-4 text-app-text font-medium">
                                             Verifying QR...
                                         </p>
 
@@ -853,7 +849,7 @@ const GateScannerUltra = () => {
                                             className="text-green-400"
                                         />
 
-                                        <p className="mt-4 text-lg font-semibold text-white">
+                                        <p className="mt-4 text-lg font-semibold text-app-text">
                                             Access Granted
                                         </p>
 
@@ -872,7 +868,7 @@ const GateScannerUltra = () => {
                                             className="text-red-400"
                                         />
 
-                                        <p className="mt-4 text-lg font-semibold text-white">
+                                        <p className="mt-4 text-lg font-semibold text-app-text">
                                             Invalid QR
                                         </p>
 
@@ -910,7 +906,7 @@ const GateScannerUltra = () => {
 
                         onClick={handleReset}
 
-                        className="h-12 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-medium flex items-center justify-center gap-2 transition-all"
+                        className="h-12 rounded-2xl bg-app-surface-muted hover:bg-app-surface border border-app-border text-app-text text-sm font-medium flex items-center justify-center gap-2 transition-all"
                     >
 
                         <RotateCcw size={18} />
@@ -922,13 +918,14 @@ const GateScannerUltra = () => {
                     <button
 
                         onClick={() => {
+                            setCameraReady(false);
                             stopScanner();
                             setTimeout(() => {
-                                startScanner();
+                                void startScanner();
                             }, 500);
                         }}
 
-                        className="h-12 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-black font-semibold flex items-center justify-center gap-2 transition-all"
+                        className="h-12 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-app-base font-semibold flex items-center justify-center gap-2 transition-all"
                     >
 
                         <ScanLine size={18} />

@@ -6,7 +6,7 @@ interface NaveBarSecondProps { }
 
 const NaveBarSecond: FC<NaveBarSecondProps> = () => {
     return (<>
-        <Navbar>
+        <Navbar className="admin-navbar">
             <Navbar.Content showFrom="xs">
                 <NavbarBrand />
                 <Nav>

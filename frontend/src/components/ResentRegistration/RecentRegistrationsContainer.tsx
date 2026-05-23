@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import RecentRegistrationsUI from "../RecentRegistrationsUI";
-
+import AppPageLayout from "../../layouts/AppPageLayout";
 
 type Props = {
     mode?: "preview" | "full";
@@ -19,7 +19,6 @@ const mockData = Array.from({ length: 20 }).map((_, i) => ({
 
 const RecentRegistrationsContainer: React.FC<Props> = ({ mode = "preview" }) => {
     const navigate = useNavigate();
-
     const [search, setSearch] = useState("");
     const [loading] = useState(false);
 
@@ -31,7 +30,7 @@ const RecentRegistrationsContainer: React.FC<Props> = ({ mode = "preview" }) => 
         );
     }, [search]);
 
-    return (
+    const content = (
         <RecentRegistrationsUI
             preview={mode === "preview"}
             navigate={navigate}
@@ -41,6 +40,16 @@ const RecentRegistrationsContainer: React.FC<Props> = ({ mode = "preview" }) => 
             setSearch={setSearch}
         />
     );
+
+    if (mode === "full") {
+        return (
+            <AppPageLayout title="All Registrations" embedded showGlow={false}>
+                {content}
+            </AppPageLayout>
+        );
+    }
+
+    return content;
 };
 
 export default RecentRegistrationsContainer;

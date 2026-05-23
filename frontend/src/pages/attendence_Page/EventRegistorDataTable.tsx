@@ -41,7 +41,7 @@
 //                         initial={{ opacity: 0, x: 15 }}
 //                         animate={{ opacity: 1, x: 0 }}
 //                         transition={{ delay: index * 0.08 }}
-//                         className="rounded-2xl border border-white/10 bg-black/20 p-5 hover:border-cyan-500/40 transition"
+//                         className="rounded-2xl border border-app-border bg-black/20 p-5 hover:border-cyan-500/40 transition"
 //                     >
 //                         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 //                             <div className="flex items-center gap-4">
@@ -54,7 +54,7 @@
 //                                         {user.name}
 //                                     </h4>
 
-//                                     <p className="text-gray-400 text-sm">
+//                                     <p className="text-app-secondary text-sm">
 //                                         {user.email}
 //                                     </p>
 
@@ -108,6 +108,10 @@ import { format } from "date-fns";
 
 import { useAppSelector } from "../../hooks/hooks";
 import { eventRegistrationDetils_Get_ById } from "../../redux/Thunks/EventRegisrationDetilsThunk";
+import RegistrationDataTable, {
+    REGISTRATION_TABLE_LAYOUTS,
+} from "../../components/registration/RegistrationDataTable";
+import { getRegistrationInvestorName } from "../../utils/getRegistrationInvestorName";
 
 function EventRegistorDataTable({ selectID }: any) {
     const dispatch = useDispatch<any>();
@@ -150,21 +154,17 @@ function EventRegistorDataTable({ selectID }: any) {
 
     // ================= PARTICIPANTS =================
     const attendees = useMemo(() => {
+        const value = search.toLowerCase();
         return (
             registrationData?.registrations?.filter((item: any) => {
-                const value = search.toLowerCase();
-
-                return (
-                    item?.investor?.Name?.toLowerCase()?.includes(value) ||
-                    item?.phone?.toLowerCase()?.includes(value) ||
-                    registration?.phone?.toLowerCase()?.includes(value)
-                );
+                const name = getRegistrationInvestorName(item).toLowerCase();
+                return name.includes(value) || String(item?.phone || "").includes(value);
             }) || []
         );
-    }, [registration, search]);
+    }, [registrationData?.registrations, search]);
     console.log('attendees', attendees)
     return (
-        <div className="min-h-screen text-white">
+        <div className="app-page text-app-text">
             {/* ================= HEADER ================= */}
             <div className="mb-8 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
                 <div>
@@ -193,7 +193,7 @@ function EventRegistorDataTable({ selectID }: any) {
                         {event?.title || "Event Registration"}
                     </motion.h1>
 
-                    <p className="text-gray-400 mt-2 max-w-2xl">
+                    <p className="text-app-secondary mt-2 max-w-2xl">
                         {event?.description ||
                             "Registration details and participant management"}
                     </p>
@@ -203,12 +203,12 @@ function EventRegistorDataTable({ selectID }: any) {
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div
                         className="
-                            rounded-2xl border border-white/10
-                            bg-white/5 backdrop-blur-xl
+                            rounded-2xl border border-app-border
+                            bg-app-surface backdrop-blur-xl
                             px-5 py-4
                         "
                     >
-                        <p className="text-gray-400 text-xs uppercase tracking-wider">
+                        <p className="text-app-secondary text-xs uppercase tracking-wider">
                             Participants
                         </p>
 
@@ -219,12 +219,12 @@ function EventRegistorDataTable({ selectID }: any) {
 
                     <div
                         className="
-                            rounded-2xl border border-white/10
-                            bg-white/5 backdrop-blur-xl
+                            rounded-2xl border border-app-border
+                            bg-app-surface backdrop-blur-xl
                             px-5 py-4
                         "
                     >
-                        <p className="text-gray-400 text-xs uppercase tracking-wider">
+                        <p className="text-app-secondary text-xs uppercase tracking-wider">
                             Payment
                         </p>
 
@@ -242,16 +242,16 @@ function EventRegistorDataTable({ selectID }: any) {
 
                     <div
                         className="
-                            rounded-2xl border border-white/10
-                            bg-white/5 backdrop-blur-xl
+                            rounded-2xl border border-app-border
+                            bg-app-surface backdrop-blur-xl
                             px-5 py-4 col-span-2 lg:col-span-1
                         "
                     >
-                        <p className="text-gray-400 text-xs uppercase tracking-wider">
+                        <p className="text-app-secondary text-xs uppercase tracking-wider">
                             Created
                         </p>
 
-                        <h2 className="text-sm font-semibold mt-2 text-white/90">
+                        <h2 className="text-sm font-semibold mt-2 text-app-text/90">
                             {registration?.createdAt
                                 ? format(
                                     new Date(registration.createdAt),
@@ -269,8 +269,8 @@ function EventRegistorDataTable({ selectID }: any) {
                 animate={{ opacity: 1, y: 0 }}
                 className="
                     mb-8 rounded-3xl
-                    border border-white/10
-                    bg-white/5 backdrop-blur-2xl
+                    border border-app-border
+                    bg-app-surface backdrop-blur-2xl
                     p-4
                 "
             >
@@ -290,7 +290,7 @@ function EventRegistorDataTable({ selectID }: any) {
                 animate={{ opacity: 1, y: 0 }}
                 className="
                     mb-8 rounded-3xl
-                    border border-white/10
+                    border border-app-border
                     bg-gradient-to-br from-cyan-500/10 to-fuchsia-500/10
                     backdrop-blur-2xl
                     p-6
@@ -305,7 +305,7 @@ function EventRegistorDataTable({ selectID }: any) {
                                 !bg-gradient-to-r
                                 !from-cyan-500
                                 !to-fuchsia-500
-                                !text-white
+                                !text-app-text
                                 !font-black
                             "
                         >
@@ -318,12 +318,12 @@ function EventRegistorDataTable({ selectID }: any) {
                             </h2>
 
                             <div className="flex flex-wrap items-center gap-4 mt-2">
-                                <div className="flex items-center gap-2 text-sm text-gray-300">
+                                <div className="flex items-center gap-2 text-sm text-app-secondary">
                                     <Phone size={14} />
                                     {investor?.Phone_No || registration?.phone}
                                 </div>
 
-                                <div className="flex items-center gap-2 text-sm text-gray-300">
+                                <div className="flex items-center gap-2 text-sm text-app-secondary">
                                     <CalendarDays size={14} />
                                     {registration?.createdAt
                                         ? format(
@@ -369,8 +369,8 @@ function EventRegistorDataTable({ selectID }: any) {
                 {loading ? (
                     <div
                         className="
-                            rounded-3xl border border-white/10
-                            bg-white/5 backdrop-blur-xl
+                            rounded-3xl border border-app-border
+                            bg-app-surface backdrop-blur-xl
                             p-10 text-center
                         "
                     >
@@ -382,128 +382,36 @@ function EventRegistorDataTable({ selectID }: any) {
                             "
                         />
 
-                        <p className="mt-4 text-gray-400">
+                        <p className="mt-4 text-app-secondary">
                             Loading registration details...
                         </p>
                     </div>
                 ) : attendees?.length === 0 ? (
                     <div
                         className="
-                            rounded-3xl border border-dashed border-white/10
-                            bg-white/5 backdrop-blur-xl
+                            rounded-3xl border border-dashed border-app-border
+                            bg-app-surface backdrop-blur-xl
                             p-14 text-center
                         "
                     >
-                        <h2 className="text-xl font-bold text-white">
+                        <h2 className="text-xl font-bold text-app-text">
                             No Participants Found
                         </h2>
 
-                        <p className="text-gray-400 mt-2">
+                        <p className="text-app-secondary mt-2">
                             No matching registration participants available.
                         </p>
                     </div>
                 ) : (
                     <>
-                        <div className=" bg-[#181449]   backdrop-blur-lg border border-gray-100 rounded-2xl shadow-md overflow-hidden">
-
-                            {/* HEADER */}
-                            <div className="grid grid-cols-6 bg-gray-50 text-xs text-gray-500 px-4 py-3">
-                                <div>User</div>
-                                <div className="hidden md:block">Category</div>
-                                <div>Pass</div>
-                                <div>Status</div>
-                                <div className="hidden md:block">Time</div>
-                                <div>Actions</div>
-                            </div>
-
-                            {/* BODY */}
-                            <div>
-                                {attendees?.length === 0 ? (
-                                    <div className="text-center py-10 text-gray-400">
-                                        No registrations found
-                                    </div>
-                                ) : (
-                                    attendees?.map((item: any) => (
-                                        <div
-                                            key={item._id}
-                                            className="
-                                                    group relative grid grid-cols-6 items-center
-                                                    px-4 py-3 border-t
-                                                    transition-all duration-200 ease-out
-                                                    hover:bg-gray-50 hover:scale-[1.01]
-                                                    cursor-pointer 
-                                                    "
-                                        >
-                                            {/* 🔥 Glow effect */}
-                                            <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition bg-gradient-to-r from-blue-500/5 to-indigo-500/5"></div>
-
-                                            {/* USER */}
-                                            <div className="flex items-center gap-3 relative z-10">
-                                                <Avatar
-                                                    circle
-                                                    className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white transition group-hover:scale-110"
-                                                >
-                                                    {item.investor?.Name?.charAt(0)}
-                                                </Avatar>
-
-                                                <div>
-                                                    <p className="text-sm font-semibold text-white group-hover:text-blue-600 transition">
-                                                        {item.investor?.Name}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500">
-                                                        {item.investor?.Phone_No || item.phone}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            {/* CATEGORY */}
-                                            <div className="hidden md:block relative z-10">
-                                                <Tag className="bg-purple-100 text-purple-600 text-xs">
-                                                    General
-                                                </Tag>
-                                            </div>
-
-                                            {/* PASS */}
-                                            <div className="relative z-10">
-                                                <span className="text-xs px-3 py-1 rounded-full bg-green-100 text-green-600">
-                                                    {item?.payment?.status === "success" ? "PAID" : 'Pending...'}
-                                                </span>
-                                            </div>
-
-                                            {/* STATUS */}
-                                            <div className="flex items-center gap-2 relative z-10">
-                                                <span className="w-2 h-2 rounded-full bg-green-500 animate-ping"></span>
-                                                <span className="text-xs text-white group-hover:text-gray-500" >
-                                                    Checked
-                                                </span>
-                                            </div>
-
-                                            {/* TIME */}
-                                            <div className="hidden md:block text-xs text-gray-400 relative z-10">
-                                                {format(new Date(item.createdAt), "hh:mm a")}
-                                            </div>
-
-                                            {/* ACTIONS */}
-                                            <div className="flex gap-2 relative z-10">
-                                                <IconButton
-                                                    icon={<Eye size={16} />}
-                                                    appearance="subtle"
-                                                    className="hover:scale-110 transition"
-                                                />
-                                                <IconButton
-                                                    icon={<Trash2 size={16} />}
-                                                    appearance="subtle"
-                                                    color="red"
-                                                    className="hover:scale-110 hover:rotate-3 transition"
-                                                />
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
+                        <div className="app-card overflow-hidden">
+                            <RegistrationDataTable
+                                rows={attendees}
+                                columns={[...REGISTRATION_TABLE_LAYOUTS.eventDetail]}
+                                event={event}
+                                minWidth={760}
+                            />
                         </div>
-
-
                     </>
 
                 )}
@@ -529,8 +437,8 @@ export default EventRegistorDataTable;
 //                         }}
 //                         className="
 //                             group relative overflow-hidden
-//                             rounded-3xl border border-white/10
-//                             bg-white/5 backdrop-blur-2xl
+//                             rounded-3xl border border-app-border
+//                             bg-app-surface backdrop-blur-2xl
 //                             p-6
 //                             transition-all duration-500
 //                             hover:border-cyan-500/30
@@ -572,7 +480,7 @@ export default EventRegistorDataTable;
 //                                     <h3
 //                                         className="
 //                                             text-xl font-black
-//                                             text-white
+//                                             text-app-text
 //                                             group-hover:text-cyan-300
 //                                             transition
 //                                         "
@@ -580,7 +488,7 @@ export default EventRegistorDataTable;
 //                                         {user?.investor?.Name}
 //                                     </h3>
 
-//                                     <p className="text-gray-400 text-sm mt-1">
+//                                     <p className="text-app-secondary text-sm mt-1">
 //                                         {user?.email || "No email added"}
 //                                     </p>
 

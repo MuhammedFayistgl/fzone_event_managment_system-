@@ -8,23 +8,50 @@ import {
 
 
 export const signupAdmin = async (req, res) => {
+    if (process.env.ALLOW_ADMIN_SIGNUP !== "true") {
+        return res.status(403).json({
+            success: false,
+            message: "Admin signup is disabled. Contact a system administrator.",
+        });
+    }
+
     const { email, password } = req.body;
-    console.log('===', email, password);
+
+    if (!email || !password) {
+        return res.status(400).json({
+            success: false,
+            message: "Email and password are required",
+        });
+    }
+
     try {
         const existingUser = await adminSchema.findOne({ email });
-        if (existingUser) return res.status(400).json("User already exists");
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                message: "User already exists",
+            });
+        }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const user = await adminSchema.create({
             email,
             password: hashedPassword,
-            role: "admin"
+            role: "admin",
         });
 
-        res.json(user);
+        return res.status(201).json({
+            success: true,
+            message: "Admin created",
+            data: { id: user._id, email: user.email, role: user.role },
+        });
     } catch (err) {
-        res.status(500).json(err);
+        console.error("Signup error:", err);
+        return res.status(500).json({
+            success: false,
+            message: "Server error",
+        });
     }
 };
 
@@ -52,22 +79,37 @@ export const loginAdmin = async (req, res) => {
     });
 };
 
-export const refreshToken = (req, res) => {
+export const refreshToken = async (req, res) => {
     const token = req.cookies.refreshToken;
-    if (!token) return res.status(401).json("No refresh token");
+    if (!token) {
+        return res.status(401).json({
+            success: false,
+            message: "No refresh token",
+        });
+    }
 
     try {
         const decoded = jwt.verify(token, process.env.REFRESH_SECRET);
+        const user = await adminSchema.findById(decoded.id).select("role");
 
         const accessToken = jwt.sign(
-            { id: decoded.id },
+            {
+                id: decoded.id,
+                role: user?.role || "admin",
+            },
             process.env.ACCESS_SECRET,
             { expiresIn: "15m" }
         );
 
-        res.json({ accessToken });
+        return res.json({
+            accessToken,
+            role: user?.role || "admin",
+        });
     } catch (err) {
-        res.status(403).json("Invalid refresh token");
+        return res.status(403).json({
+            success: false,
+            message: "Invalid refresh token",
+        });
     }
 };
 

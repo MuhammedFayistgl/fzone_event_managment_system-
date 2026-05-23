@@ -129,10 +129,15 @@ export const GuestDetails = () => {
 
             if (!registrationId) return;
             console.log('test registrationId')
+            const phone =
+                investor?.registration?.phone ||
+                String(investor?.investor?.Phone_No ?? "");
+
             await dispatch(
                 deleteRegisteredGuest({
                     registrationId,
                     guestIndex: index,
+                    phone,
                 })
             ).unwrap();
 
@@ -169,7 +174,7 @@ export const GuestDetails = () => {
 
     return (
 
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 space-y-5">
+        <div className="app-card p-6 space-y-5">
 
             {/* ================= HEADER ================= */}
 
@@ -177,11 +182,11 @@ export const GuestDetails = () => {
 
                 <div>
 
-                    <h2 className="text-xl font-bold text-gray-800">
+                    <h2 className="text-xl font-bold text-app-text">
                         Guest Details
                     </h2>
 
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="text-sm text-app-muted mt-1">
                         {totalGuestsCount} / {maxGuests} Guests Added
                     </p>
 
@@ -207,7 +212,7 @@ export const GuestDetails = () => {
 
                 <div className="space-y-3">
 
-                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                    <h3 className="text-sm font-semibold text-app-secondary uppercase tracking-wide">
                         Already Registered Guests
                     </h3>
 
@@ -216,22 +221,22 @@ export const GuestDetails = () => {
 
                             <div
                                 key={p._id}
-                                className="border border-green-200 bg-green-50 rounded-2xl p-4 flex justify-between items-center"
+                                className="border border-emerald-500/30 bg-emerald-500/10 rounded-2xl p-4 flex justify-between items-center"
                             >
 
                                 <div>
 
-                                    <p className="font-semibold text-gray-800">
+                                    <p className="font-semibold text-app-text">
                                         {p.name}
                                     </p>
 
-                                    <p className="text-xs text-gray-500 capitalize">
+                                    <p className="text-xs text-app-muted capitalize">
                                         {p.type}
                                     </p>
 
                                 </div>
 
-                                <div className="text-xs font-semibold text-green-600">
+                                <div className="text-xs font-semibold text-emerald-400">
                                     Registered
                                 </div>
                                 <Button
@@ -262,7 +267,7 @@ export const GuestDetails = () => {
 
                         <div
                             key={g.id || i}
-                            className="border border-gray-200 rounded-2xl p-4 grid grid-cols-1 md:grid-cols-3 gap-4"
+                            className="border border-app-border app-card-muted rounded-2xl p-4 grid grid-cols-1 md:grid-cols-3 gap-4"
                         >
 
                             {/* NAME */}
@@ -296,7 +301,7 @@ export const GuestDetails = () => {
                             {/* RELATION */}
 
                             <select
-                                className="border rounded-lg px-3 py-2 outline-none bg-white"
+                                className="app-input border rounded-lg px-3 py-2 outline-none"
                                 value={g.relation}
                                 onChange={(e) =>
                                     handleUpdateGuest(

@@ -66,13 +66,10 @@ export default function EventCard({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 p-5 space-y-4 border border-gray-100 hover:border-blue-200">
-
-      {/* HEADER */}
+    <div className="app-card-raised hover:shadow-app-card transition-all duration-300 p-5 space-y-4">
       <div className="flex justify-between items-start gap-3">
-
         <div>
-          <h2 className="font-bold text-lg text-gray-800 leading-snug">
+          <h2 className="font-bold text-lg text-app-text leading-snug">
             {event.title}
           </h2>
 
@@ -89,19 +86,19 @@ export default function EventCard({
         {/* STATUS BADGE */}
         <div>
           {status === "LIVE" && (
-            <span className="text-xs px-3 py-1 rounded-full bg-green-100 text-green-600 font-semibold animate-pulse">
+            <span className="text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-semibold animate-pulse">
               🔴 LIVE
             </span>
           )}
 
           {status === "UPCOMING" && (
-            <span className="text-xs px-3 py-1 rounded-full bg-blue-100 text-blue-600 font-semibold">
+            <span className="text-xs px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-400 font-semibold">
               ⏳ {days} days left
             </span>
           )}
 
           {status === "ENDED" && (
-            <span className="text-xs px-3 py-1 rounded-full bg-gray-200 text-gray-500 font-semibold">
+            <span className="text-xs px-3 py-1 rounded-full bg-app-surface-muted text-app-muted border border-app-border font-semibold">
               ENDED
             </span>
           )}
@@ -110,7 +107,7 @@ export default function EventCard({
       </div>
 
       {/* DESCRIPTION */}
-      <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">
+      <p className="text-sm text-app-secondary leading-relaxed line-clamp-2">
         {event.description}
       </p>
 
@@ -118,18 +115,18 @@ export default function EventCard({
       <div className="grid grid-cols-2 gap-3 text-sm">
 
         {/* LOCATION */}
-        <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+        <div className="flex items-center gap-2 bg-app-surface-muted px-3 py-2 rounded-lg border border-app-border">
           {event.locationType === "online" ? (
             <>
               <span>🌐</span>
-              <span className="text-blue-600 font-medium">
+              <span className="text-cyan-400 font-medium">
                 Online Event
               </span>
             </>
           ) : (
             <>
               <span>📍</span>
-              <span className="text-gray-700 truncate">
+              <span className="text-app-text truncate">
                 {event.location}
               </span>
             </>
@@ -137,18 +134,18 @@ export default function EventCard({
         </div>
 
         {/* PRICE */}
-        <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+        <div className="flex items-center gap-2 bg-app-surface-muted px-3 py-2 rounded-lg border border-app-border">
           {event.isPaid ? (
             <>
               <span>💰</span>
-              <span className="text-red-500 font-semibold">
+              <span className="text-red-400 font-semibold">
                 ₹ {event.price}
               </span>
             </>
           ) : (
             <>
               <span>🎟️</span>
-              <span className="text-green-500 font-semibold">
+              <span className="text-emerald-400 font-semibold">
                 Free
               </span>
             </>
@@ -156,7 +153,7 @@ export default function EventCard({
         </div>
 
         {/* GUEST */}
-        <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+        <div className="flex items-center gap-2 bg-app-surface-muted px-3 py-2 rounded-lg border border-app-border">
           <span>👥</span>
           <span>
             {event.allowGuests
@@ -166,7 +163,7 @@ export default function EventCard({
         </div>
 
         {/* REFUND */}
-        <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+        <div className="flex items-center gap-2 bg-app-surface-muted px-3 py-2 rounded-lg border border-app-border">
           <span>💸</span>
           <span>
             {event.isRefundable ? "Refundable" : "Non Refundable"}
@@ -176,8 +173,8 @@ export default function EventCard({
       </div>
 
       {/* EVENT DAYS */}
-      <div className="bg-gray-50 rounded-lg p-3 space-y-1 text-xs text-gray-600">
-        <div className="font-semibold text-gray-700 mb-1">
+      <div className="app-card-muted p-3 space-y-1 text-xs text-app-secondary">
+        <div className="font-semibold text-app-text mb-1">
           📅 Event Schedule
         </div>
 
@@ -200,12 +197,12 @@ export default function EventCard({
 
         <div className="flex justify-between items-center">
 
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-app-muted">
             {event.eventDays?.length} day event
           </span>
 
           <button
-            className="text-xs px-3 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
+            className="text-xs px-3 py-1 rounded-md bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 transition"
             onClick={() =>
               navigator.clipboard.writeText(
                 `${window.location.origin}/event/${event._id}`
@@ -219,14 +216,14 @@ export default function EventCard({
           <div className="flex gap-2">
 
             <button
-              className="text-xs px-3 py-1 rounded-md bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition"
+              className="text-xs px-3 py-1 rounded-md bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 transition"
               onClick={handleEdit}
             >
               Edit
             </button>
 
             <button
-              className="text-xs px-3 py-1 rounded-md bg-red-50 text-red-600 hover:bg-red-100 transition"
+              className="text-xs px-3 py-1 rounded-md bg-red-500/15 text-red-400 hover:bg-red-500/25 transition"
               onClick={handleDelete}
             >
               Delete

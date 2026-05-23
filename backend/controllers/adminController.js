@@ -5,6 +5,12 @@ import eventModel from "../models/eventModel.js";
 import RegEventModel from "../models/EventRegistrationModel.js";
 import Investor from "../models/Investor.js";
 import Payment from "../models/paymentModel.js";
+import {
+    buildInvestorLookupByPhone,
+    repairRegistrationInvestorIds,
+    formatRegistrationInvestor,
+} from "../utils/resolveRegistrationInvestors.js";
+import { buildInvestorSearchFilter } from "../utils/investorSearch.js";
 
 
 
@@ -15,24 +21,37 @@ const clearInvestorCache = async () => {
         if (keys.length > 0) {
             await redisClient.del(keys);
         }
+        await redisClient.del("dashboard:summary:v2");
     } catch (err) {
         console.log("Redis clear error:", err);
     }
 };
 
+const VALID_GENDERS = ["Male", "Female", "Other"];
+
+const normalizeGender = (gender) => {
+    if (!gender || typeof gender !== "string") return null;
+    const trimmed = gender.trim();
+    const match = VALID_GENDERS.find(
+        (g) => g.toLowerCase() === trimmed.toLowerCase()
+    );
+    return match || null;
+};
+
 // 🔹 CREATE INVESTOR
 export const uploadInvestorDetails = async (req, res) => {
     try {
-        let { Code_No, Name, Phone_No } = req.body;
+        let { Code_No, Name, Phone_No, Gender } = req.body;
 
         // ✅ FORMAT
         Code_No = Code_No?.trim().toUpperCase();
         Phone_No = Phone_No?.toString().trim();
+        Gender = normalizeGender(Gender);
 
-        if (!Code_No || !Name || !Phone_No) {
+        if (!Code_No || !Name || !Phone_No || !Gender) {
             return res.status(400).json({
                 status: false,
-                message: "All fields are required",
+                message: "All fields are required (Code, Name, Phone, Gender)",
             });
         }
 
@@ -66,6 +85,7 @@ export const uploadInvestorDetails = async (req, res) => {
                     Code_No,
                     Name,
                     Phone_No,
+                    Gender,
                 });
                 break; // success
             } catch (err) {
@@ -83,10 +103,7 @@ export const uploadInvestorDetails = async (req, res) => {
         }
 
         // 🔥 CLEAR CACHE
-        const keys = await redisClient.keys("investors:*");
-        for (const key of keys) {
-            await redisClient.del(key);
-        }
+        await clearInvestorCache();
 
         res.json({
             status: true,
@@ -112,13 +129,14 @@ export const fetchInvestorData = async (req, res) => {
             search = "",
             sortBy,
             sortOrder,
+            gender = "",
         } = req.body;
 
         const pageNum = Number(page);
         const limitNum = Number(limit);
         const skip = (pageNum - 1) * limitNum;
 
-        const cacheKey = `investors:${page}:${limit}:${search}:${sortBy}:${sortOrder}`;
+        const cacheKey = `investors:${page}:${limit}:${search}:${sortBy}:${sortOrder}:${gender}`;
 
         // ✅ CACHE CHECK
         const cachedData = await redisClient.get(cacheKey);
@@ -127,17 +145,19 @@ export const fetchInvestorData = async (req, res) => {
             return res.json(JSON.parse(cachedData));
         }
 
-        // ✅ SEARCH QUERY
-        let query = {};
-        if (search) {
-            query = {
-                $or: [
-                    { Name: { $regex: search, $options: "i" } },
-                    { Code_No: { $regex: search, $options: "i" } },
-                    { Phone_No: { $regex: search, $options: "i" } },
-                ],
-            };
+        const conditions = [];
+
+        const searchFilter = buildInvestorSearchFilter(search, normalizeGender);
+        if (searchFilter) {
+            conditions.push(searchFilter);
         }
+
+        const genderFilter = normalizeGender(gender);
+        if (genderFilter) {
+            conditions.push({ Gender: genderFilter });
+        }
+
+        const query = conditions.length > 0 ? { $and: conditions } : {};
 
         const sortField = sortBy || "createdAt";
 
@@ -170,7 +190,7 @@ export const fetchInvestorData = async (req, res) => {
 // 🔹 DASHBOARD SUMMARY
 export const getDashboardSummary = async (req, res) => {
     try {
-        const cacheKey = "dashboard:summary";
+        const cacheKey = "dashboard:summary:v2";
 
         const cachedData = await redisClient.get(cacheKey);
 
@@ -181,7 +201,50 @@ export const getDashboardSummary = async (req, res) => {
 
         const totalInvestors = await investorsModal.estimatedDocumentCount();
 
-        const result = { totalInvestors };
+        const genderCounts = await investorsModal.aggregate([
+            {
+                $group: {
+                    _id: "$Gender",
+                    count: { $sum: 1 },
+                },
+            },
+        ]);
+
+        const countByGender = genderCounts.reduce(
+            (acc, item) => {
+                acc[item._id] = item.count;
+                return acc;
+            },
+            {}
+        );
+
+        const entryPassesIssued = await RegEventModel.estimatedDocumentCount();
+        const verifiedCheckIns = await RegEventModel.countDocuments({ isCheckedIn: true });
+
+        const guestAgg = await RegEventModel.aggregate([
+            {
+                $project: {
+                    guestCount: { $size: { $ifNull: ["$participants", []] } },
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    subMembers: { $sum: "$guestCount" },
+                },
+            },
+        ]);
+
+        const result = {
+            totalInvestors,
+            maleCount: countByGender.Male || 0,
+            femaleCount: countByGender.Female || 0,
+            otherCount: countByGender.Other || 0,
+            entryPassesIssued,
+            verifiedCheckIns,
+            mainMembers: entryPassesIssued,
+            subMembers: guestAgg[0]?.subMembers || 0,
+        };
 
         await redisClient.setEx(cacheKey, 120, JSON.stringify(result));
 
@@ -200,11 +263,19 @@ export const getDashboardSummary = async (req, res) => {
 export const updateInvestor = async (req, res) => {
     try {
         const { id } = req.params;
-        let { Code_No, Phone_No, Name } = req.body;
+        let { Code_No, Phone_No, Name, Gender } = req.body;
 
         // ✅ FORMAT
-        if (Code_No) Code_No = Code_No.trim().toUpperCase();
-        if (Phone_No) Phone_No = Phone_No.toString().trim();
+        Code_No = Code_No?.trim().toUpperCase();
+        Phone_No = Phone_No?.toString().trim();
+        Gender = normalizeGender(Gender);
+
+        if (!Code_No || !Name || !Phone_No || !Gender) {
+            return res.status(400).json({
+                status: false,
+                message: "All fields are required (Code, Name, Phone, Gender)",
+            });
+        }
 
         // 🔴 DUPLICATE CHECK
         const existing = await investorsModal.findOne({
@@ -221,7 +292,7 @@ export const updateInvestor = async (req, res) => {
 
         const updated = await investorsModal.findByIdAndUpdate(
             id,
-            { Code_No, Phone_No, Name },
+            { Code_No, Phone_No, Name, Gender },
             { new: true }
         );
 
@@ -411,7 +482,16 @@ export const deleteInvestor = async (req, res) => {
 
 export const registrationDetails = async (req, res) => {
     try {
-        const { id } = req.body;
+        let { id } = req.body;
+
+        // Accept { id: "..." } nested from some clients
+        if (id && typeof id === "object" && id.id) {
+            id = id.id;
+        }
+
+        if (typeof id === "string") {
+            id = id.trim();
+        }
 
         console.log(id, "EVENT_ID");
 
@@ -480,6 +560,14 @@ export const registrationDetails = async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
+        const investorByPhone = await buildInvestorLookupByPhone(
+            registrations.map((item) => item.phone)
+        );
+        await repairRegistrationInvestorIds(
+            registrations,
+            investorByPhone
+        );
+
         // ================= PAYMENT DETAILS =================
         const phones = registrations.map((item) => item.phone);
 
@@ -519,7 +607,10 @@ export const registrationDetails = async (req, res) => {
 
                 registrationId: registration._id,
 
-                investor: registration.investorId || null,
+                investor: formatRegistrationInvestor(
+                    registration,
+                    investorByPhone
+                ),
 
                 event: registration.eventId || null,
 

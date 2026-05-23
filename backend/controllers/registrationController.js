@@ -2,7 +2,17 @@
 import eventModel from "../models/eventModel.js";
 import RegEventModel from "../models/EventRegistrationModel.js";
 import Payment from "../models/paymentModel.js";
-import investorsModal from "../models/Investor.js"
+import investorsModal from "../models/Investor.js";
+import {
+  normalizePhone,
+  investorPhoneQuery,
+  registrationPhoneQuery,
+} from "../utils/phone.js";
+import {
+  buildInvestorLookupByPhone,
+  formatRegistrationInvestor,
+  repairRegistrationInvestorIds,
+} from "../utils/resolveRegistrationInvestors.js";
 
 import QRCode from "qrcode";
 import { v4 as uuidv4 } from "uuid";
@@ -11,7 +21,6 @@ import { v4 as uuidv4 } from "uuid";
 export const registerEvent = async (req, res) => {
   try {
     const { phone, eventId, guests = [] } = req.body;
-    console.log(req.body);
 
     // ================= 1. VALIDATION =================
     if (!phone || !eventId) {
@@ -20,6 +29,17 @@ export const registerEvent = async (req, res) => {
         message: "Phone and Event ID required",
       });
     }
+
+    const normalized = normalizePhone(phone);
+
+    if (!normalized.valid) {
+      return res.status(400).json({
+        success: false,
+        message: normalized.message,
+      });
+    }
+
+    const phoneKey = normalized.string;
 
     // ================= 2. GET EVENT =================
     const event = await eventModel.findById(eventId);
@@ -51,7 +71,7 @@ export const registerEvent = async (req, res) => {
     if (event.isPaid) {
       payment = await Payment.findOne({
         eventId,
-        phone,
+        phone: phoneKey,
         status: "success",
       });
 
@@ -64,10 +84,15 @@ export const registerEvent = async (req, res) => {
     }
 
     // ================= 5. CHECK EXISTING =================
-    const existing = await RegEventModel.findOne({ eventId, phone });
+    const existing = await RegEventModel.findOne({
+      eventId,
+      ...registrationPhoneQuery(normalized),
+    });
 
     // ================= 6. GET INVESTOR =================
-    const investor = await investorsModal.findOne({ Phone_No: phone });
+    const investor = await investorsModal.findOne(
+      investorPhoneQuery(normalized)
+    );
 
     if (!investor) {
       return res.status(404).json({
@@ -177,6 +202,9 @@ export const registerEvent = async (req, res) => {
         existing._id,
         {
           participants: finalParticipants,
+          investorId: investor._id,
+          investorName: investor.Name,
+          investorCode: investor.Code_No,
         },
         { new: true }
       );
@@ -207,7 +235,9 @@ export const registerEvent = async (req, res) => {
     const registration = await RegEventModel.create({
       eventId,
       investorId: investor._id,
-      phone,
+      phone: phoneKey,
+      investorName: investor.Name,
+      investorCode: investor.Code_No,
       participants,
 
       qrToken,
@@ -239,16 +269,26 @@ export const registerEvent = async (req, res) => {
 
 export const deleteGuestFromRegistration = async (req, res) => {
   try {
-    const { registrationId, guestIndex } = req.body;
+    const { registrationId, guestIndex, phone } = req.body;
 
     // ================= VALIDATION =================
     if (
       registrationId === undefined ||
-      guestIndex === undefined
+      guestIndex === undefined ||
+      !phone
     ) {
       return res.status(400).json({
         success: false,
-        message: "registrationId and guestIndex required",
+        message: "registrationId, guestIndex, and phone required",
+      });
+    }
+
+    const normalized = normalizePhone(phone);
+
+    if (!normalized.valid) {
+      return res.status(400).json({
+        success: false,
+        message: normalized.message,
       });
     }
 
@@ -261,6 +301,15 @@ export const deleteGuestFromRegistration = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Registration not found",
+      });
+    }
+
+    const regPhone = String(registration.phone).replace(/\D/g, "");
+
+    if (regPhone !== normalized.string) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to modify this registration",
       });
     }
 
@@ -404,9 +453,18 @@ export const checkRegistrationStatus = async (req, res) => {
       });
     }
 
+    const normalized = normalizePhone(phone);
+
+    if (!normalized.valid) {
+      return res.status(400).json({
+        success: false,
+        message: normalized.message,
+      });
+    }
+
     const existing = await RegEventModel.findOne({
       eventId,
-      phone: Number(phone),
+      ...registrationPhoneQuery(normalized),
     });
 
     if (existing) {
@@ -474,6 +532,23 @@ export const verifyQR = async (req, res) => {
 
     }
 
+    const investorByPhone = await buildInvestorLookupByPhone([registration.phone]);
+    await repairRegistrationInvestorIds(
+      [registration.toObject ? registration.toObject() : registration],
+      investorByPhone
+    );
+
+    const resolvedInvestor = formatRegistrationInvestor(
+      {
+        ...registration.toObject(),
+        investorId: registration.investorId,
+        phone: registration.phone,
+        investorName: registration.investorName,
+        investorCode: registration.investorCode,
+      },
+      investorByPhone
+    );
+
     // ================= ALREADY CHECKED IN =================
 
     if (registration.isCheckedIn) {
@@ -508,7 +583,7 @@ export const verifyQR = async (req, res) => {
       new Date();
 
     registration.checkedInBy =
-      adminId || null;
+      req.user?.id || adminId || null;
 
     registration.checkInDevice =
       checkInDevice || "Unknown Device";
@@ -535,7 +610,7 @@ export const verifyQR = async (req, res) => {
           registration.eventId,
 
         investor:
-          registration.investorId,
+          resolvedInvestor,
 
         phone:
           registration.phone,
@@ -578,14 +653,38 @@ export const verifyQR = async (req, res) => {
 
 export const closeRegistration = async (req, res) => {
   try {
-    const event = await Event.findByIdAndUpdate(
-      req.params.id,
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Event ID is required",
+      });
+    }
+
+    const event = await eventModel.findByIdAndUpdate(
+      id,
       { isRegistrationClosed: true },
       { new: true }
     );
 
-    res.json({ success: true, event });
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Registration closed",
+      data: event,
+    });
   } catch (err) {
-    res.status(500).json({ success: false, message: "Server error" });
+    console.error("Close registration error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };

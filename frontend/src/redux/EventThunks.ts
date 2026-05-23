@@ -153,9 +153,15 @@ export const checkInvestorPaymentStatus = createAsyncThunk(
 
 export const closeEventRegistration = createAsyncThunk(
   "event/closeRegistration",
-  async (id: string) => {
-    const res = await API.post(`/event/${id}/close-registration`);
-    return res.data;
+  async (id: string, { rejectWithValue }) => {
+    try {
+      const res = await API.patch(`/admin/events/${id}/close-registration`);
+      return res.data;
+    } catch (err: any) {
+      return rejectWithValue(
+        err?.response?.data?.message || "Failed to close registration"
+      );
+    }
   }
 );
 
@@ -165,7 +171,7 @@ export const checkRegistrationStatusAPI = async (data: {
   eventId: string;
   phone: string;
 }) => {
-  const res = await API.post("/check-registration", data);
+  const res = await API.post("/user/check-registration", data);
   return res.data;
 };
 
