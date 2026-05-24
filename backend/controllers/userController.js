@@ -10,6 +10,8 @@ import {
   investorPhoneQuery,
   registrationPhoneQuery,
 } from "../utils/phone.js";
+import { ensureParticipantPasses } from "../utils/passQr.js";
+import { sanitizeBlockedReasonForUser } from "../utils/paymentRefund.js";
 
 
 // controllers/investorController.js
@@ -49,9 +51,26 @@ export const checkInvestor = async (req, res) => {
       });
 
       if (existing) {
+        await ensureParticipantPasses(existing);
+
+        const registrationObject = existing.toObject();
+        registrationObject.isBlocked = Boolean(existing.isBlocked);
+        registrationObject.blockedReason = existing.isBlocked
+          ? sanitizeBlockedReasonForUser(existing.blockedReason)
+          : "";
+        registrationObject.participants = (registrationObject.participants || []).map(
+          (participant) => ({
+            ...participant,
+            isBlocked: Boolean(participant.isBlocked),
+            blockedReason: participant.isBlocked
+              ? sanitizeBlockedReasonForUser(participant.blockedReason)
+              : "",
+          })
+        );
+
         registrationData = {
           registered: true,
-          registration: existing
+          registration: registrationObject,
         };
       }
     }

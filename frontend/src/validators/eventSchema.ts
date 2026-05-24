@@ -5,12 +5,6 @@ const combineDateTime = (date: string, time: string) => {
   return new Date(`${date}T${time}:00`); // ✅ FIXED (safe ISO)
 };
 
-const endOfDay = (date: string) => {
-  const d = new Date(date);
-  d.setHours(23, 59, 59, 999);
-  return d;
-};
-
 const startOfDay = (date: string) => {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -38,18 +32,25 @@ export const eventSchema = z
 
     eventDays: z.array(eventDaySchema).min(1, "Add at least one event day"),
 
-    // registrationStart: z.string().nullable(),
-    // registrationDeadline: z.string().nullable(),
+    registrationStart: z.string().nullable().optional(),
+    registrationDeadline: z.string().nullable().optional(),
 
     isPaid: z.boolean(),
 
-    price: z.number().default(0), // ✅ FIXED (NaN safe)
+    price: z.number().default(0),
+    investorIsFree: z.boolean().default(false),
+    investorPrice: z.number().default(0),
+    guestPaymentEnabled: z.boolean().default(false),
+    guestPrice: z.number().default(0),
+    freeGuestCount: z.number().min(0).default(0),
 
     isRefundable: z.boolean(),
 
     allowGuests: z.boolean(),
 
     maxPerUser: z.number().min(1, "Minimum 1 participant required"),
+
+    maxParticipants: z.number().min(0, "Cannot be negative").default(0),
 
     locationType: z.enum(["online", "offline"]),
 
@@ -60,9 +61,6 @@ export const eventSchema = z
   })
 
   .superRefine((data, ctx) => {
-    const now = new Date();
-
-    // ✅ FIXED timezone safe
     const today = startOfDay(new Date().toDateString());
 
     let firstEventDate: Date | null = null;
@@ -180,28 +178,30 @@ export const eventSchema = z
     });
 
     // ================= PRICE =================
-    if (data.isPaid && data.price <= 0) {
-      ctx.addIssue({
-        path: ["price"],
-        code: "custom",
-        message: "Enter a valid price greater than 0"
-      });
+    if (!data.isPaid) {
+      if (data.price > 0 || data.investorPrice > 0 || data.guestPrice > 0) {
+        ctx.addIssue({ path: ["price"], code: "custom", message: "Free event should not have pricing" });
+      }
+    } else {
+      const hasInvestorFee = !data.investorIsFree && (data.investorPrice ?? data.price) > 0;
+      const hasGuestFee = data.allowGuests && data.guestPaymentEnabled && data.guestPrice > 0;
+      if (!hasInvestorFee && !hasGuestFee) {
+        ctx.addIssue({ path: ["price"], code: "custom", message: "Set investor and/or guest pricing" });
+      }
+      if (!data.investorIsFree && (data.investorPrice ?? data.price) <= 0) {
+        ctx.addIssue({ path: ["investorPrice"], code: "custom", message: "Enter investor price or mark entry free" });
+      }
+      if (data.guestPaymentEnabled && data.guestPrice <= 0) {
+        ctx.addIssue({ path: ["guestPrice"], code: "custom", message: "Enter guest price" });
+      }
+      if (data.guestPaymentEnabled && data.freeGuestCount > data.maxPerUser) {
+        ctx.addIssue({ path: ["freeGuestCount"], code: "custom", message: "Free guest count exceeds max per registration" });
+      }
     }
 
-    if (!data.isPaid && data.price > 0) {
-      ctx.addIssue({
-        path: ["price"],
-        code: "custom",
-        message: "Free event should not have a price"
-      });
-    }
-
-    if (data.price > 100000) {
-      ctx.addIssue({
-        path: ["price"],
-        code: "custom",
-        message: "Price is too high"
-      });
+    const maxPrice = Math.max(data.price, data.investorPrice ?? 0, data.guestPrice ?? 0);
+    if (maxPrice > 100000) {
+      ctx.addIssue({ path: ["price"], code: "custom", message: "Price is too high" });
     }
 
     // ================= GUEST =================
@@ -245,6 +245,18 @@ export const eventSchema = z
           path: ["location"],
           code: "custom",
           message: "Enter a detailed venue location"
+        });
+      }
+    }
+
+    if (data.registrationStart && data.registrationDeadline) {
+      const start = new Date(data.registrationStart);
+      const end = new Date(data.registrationDeadline);
+      if (end <= start) {
+        ctx.addIssue({
+          path: ["registrationDeadline"],
+          code: "custom",
+          message: "Registration deadline must be after the start date"
         });
       }
     }

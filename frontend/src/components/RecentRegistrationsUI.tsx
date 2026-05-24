@@ -12,6 +12,7 @@ type Props = {
     loading: boolean;
     search: string;
     setSearch: (v: string) => void;
+    onExport?: () => void;
 };
 
 
@@ -37,6 +38,7 @@ const RecentRegistrationsUI: React.FC<Props> = ({
     loading,
     search,
     setSearch,
+    onExport,
 }) => {
 
 
@@ -59,6 +61,15 @@ const RecentRegistrationsUI: React.FC<Props> = ({
                         )}
                     </h2>
                     <span className="text-xs text-app-muted">{filtered.length} entries</span>
+                    {!preview && onExport && (
+                        <button
+                            type="button"
+                            className="text-xs font-semibold text-app-accent hover:opacity-80"
+                            onClick={onExport}
+                        >
+                            Export CSV
+                        </button>
+                    )}
                 </div>
 
                 {/* Search */}
@@ -103,6 +114,9 @@ const RecentRegistrationsUI: React.FC<Props> = ({
                                     <div>
                                         <h3 className="text-sm font-semibold text-app-text">{item.name}</h3>
                                         <p className="text-xs text-app-muted">{item.phone}</p>
+                                        {item.eventTitle && (
+                                            <p className="text-xs text-app-muted">{item.eventTitle}</p>
+                                        )}
                                     </div>
                                 </div>
 

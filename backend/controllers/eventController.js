@@ -2,11 +2,13 @@
 import eventModel from "../models/eventModel.js";
 import RegEventModel from "../models/EventRegistrationModel.js";
 import investorsModal from "../models/Investor.js";
+import { deleteTicketBgFiles } from "../utils/ticketBackground.js";
 import {
   buildInvestorLookupByPhone,
   repairRegistrationInvestorIds,
   formatRegistrationInvestor,
 } from "../utils/resolveRegistrationInvestors.js";
+import { applyPricingToPayload, validatePricingPayload } from "../utils/pricing.js";
 
 
 
@@ -95,15 +97,10 @@ export const createEvent = async (req, res) => {
     }
 
     // ================= PAYMENT =================
-    if (data.isPaid && data.price <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid price"
-      });
-    }
-
-    if (!data.isPaid) {
-      data.price = 0;
+    Object.assign(data, applyPricingToPayload(data));
+    const pricingErrors = validatePricingPayload(data);
+    if (pricingErrors.length) {
+      return res.status(400).json({ success: false, message: pricingErrors[0] });
     }
 
     // ================= LOCATION =================
@@ -178,6 +175,7 @@ export const getAllEvents = async (req, res) => {
 export const eventDelete = async (req, res) => {
   try {
     const { id } = req.params;
+    await deleteTicketBgFiles(id);
     await eventModel.findByIdAndDelete(id);
     res.status(200).json({ success: true, message: "Event deleted successfully" });
   } catch (error) {
@@ -277,16 +275,12 @@ export const updateEvent = async (req, res) => {
     }
 
     // ================= PAYMENT =================
-    if (data.isPaid !== undefined) {
-      if (data.isPaid && data.price <= 0) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid price"
-        });
-      }
-
-      if (!data.isPaid) {
-        data.price = 0;
+    if (data.isPaid !== undefined || data.investorPrice !== undefined || data.guestPrice !== undefined) {
+      const merged = applyPricingToPayload({ ...existingEvent.toObject(), ...data });
+      Object.assign(data, merged);
+      const pricingErrors = validatePricingPayload(merged);
+      if (pricingErrors.length) {
+        return res.status(400).json({ success: false, message: pricingErrors[0] });
       }
     }
 
@@ -308,6 +302,11 @@ export const updateEvent = async (req, res) => {
           startTime: new Date(d.startTime),
           endTime: new Date(d.endTime)
         }));
+      } else if (key === "ticketDesign" && data.ticketDesign) {
+        existingEvent.ticketDesign = {
+          ...existingEvent.ticketDesign?.toObject?.() ?? existingEvent.ticketDesign ?? {},
+          ...data.ticketDesign,
+        };
       } else {
         existingEvent[key] = data[key];
       }
@@ -348,46 +347,57 @@ export const updateEvent = async (req, res) => {
 
 
 
-export const getUpcomingEventsWithRegistrations = async (req, res) => {
+export const getDashboardEventsWithRegistrations = async (req, res) => {
   try {
     const now = Date.now();
 
-    // ================= 1. GET EVENTS =================
     const events = await eventModel
-      .find({
-        isRegistrationClosed: false,
-      })
-      .select("title description location eventDays createdAt")
+      .find({ "eventDays.0": { $exists: true } })
+      .select("title description location eventDays createdAt isRegistrationClosed isPaid price investorIsFree investorPrice guestPaymentEnabled guestPrice freeGuestCount allowGuests maxPerUser locationType ticketDesign")
       .lean();
 
-    // ================= 2. FILTER UPCOMING =================
-    const upcomingEvents = events.filter((event) => {
-      if (!event.eventDays?.length) return false;
-
-      const sorted = [...event.eventDays].sort(
-        (a, b) =>
-          new Date(a.startTime).getTime() -
-          new Date(b.startTime).getTime()
-      );
-
-      const start = new Date(sorted[0].startTime).getTime();
-
-      return now < start; // 🔥 ONLY FUTURE EVENTS
-    });
-
-    if (upcomingEvents.length === 0) {
-      return res.json({
+    if (events.length === 0) {
+      return res.status(200).json({
         success: true,
-        count: 0,
-        data: [],
+        counts: { upcoming: 0, running: 0, past: 0 },
+        data: { upcoming: [], running: [], past: [] },
       });
     }
 
-    // ================= 3. GET REGISTRATIONS =================
-    const eventIds = upcomingEvents.map((e) => e._id);
+    const classified = { upcoming: [], running: [], past: [] };
+
+    for (const event of events) {
+      const sortedByStart = [...event.eventDays].sort(
+        (a, b) =>
+          new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+      );
+      const sortedByEnd = [...event.eventDays].sort(
+        (a, b) =>
+          new Date(b.endTime).getTime() - new Date(a.endTime).getTime()
+      );
+
+      const startTime = new Date(sortedByStart[0].startTime).getTime();
+      const endTime = new Date(sortedByEnd[0].endTime).getTime();
+
+      let status;
+      if (now < startTime) status = "upcoming";
+      else if (now <= endTime) status = "running";
+      else status = "ended";
+
+      classified[
+        status === "upcoming" ? "upcoming" : status === "running" ? "running" : "past"
+      ].push({
+        event,
+        startTime,
+        endTime,
+        status,
+      });
+    }
+
+    const allIds = events.map((e) => e._id);
 
     const registrations = await RegEventModel.find({
-      eventId: { $in: eventIds },
+      eventId: { $in: allIds },
     })
       .populate({
         path: "investorId",
@@ -401,14 +411,10 @@ export const getUpcomingEventsWithRegistrations = async (req, res) => {
     );
     await repairRegistrationInvestorIds(registrations, investorByPhone);
 
-    // ================= 4. GROUP =================
     const grouped = {};
-
     for (const reg of registrations) {
       const key = reg.eventId.toString();
-
       if (!grouped[key]) grouped[key] = [];
-
       grouped[key].push({
         _id: reg._id,
         phone: reg.phone,
@@ -427,43 +433,40 @@ export const getUpcomingEventsWithRegistrations = async (req, res) => {
       });
     }
 
-    // ================= 5. FINAL =================
-    const result = upcomingEvents.map((event) => {
+    const enrich = ({ event, startTime, endTime, status }) => {
       const regs = grouped[event._id.toString()] || [];
-
-      // 🔥 EXTRA PRO DATA
-      const sorted = [...event.eventDays].sort(
-        (a, b) =>
-          new Date(a.startTime).getTime() -
-          new Date(b.startTime).getTime()
-      );
-
-      const start = new Date(sorted[0].startTime).getTime();
-
       return {
         ...event,
         registrations: regs,
         totalRegistrations: regs.length,
-        startTime: start,
-        daysLeft: Math.ceil((start - now) / (1000 * 60 * 60 * 24)), // 🔥 UI-ready
-        status: "upcoming",
+        startTime,
+        endTime,
+        daysLeft: Math.ceil((startTime - now) / (1000 * 60 * 60 * 24)),
+        status,
       };
-    });
+    };
 
-    // ================= 6. SORT BY NEAREST =================
-    result.sort((a, b) => a.startTime - b.startTime);
+    const upcoming = classified.upcoming.map(enrich).sort((a, b) => a.startTime - b.startTime);
+    const running = classified.running.map(enrich).sort((a, b) => a.startTime - b.startTime);
+    const past = classified.past.map(enrich).sort((a, b) => b.endTime - a.endTime);
 
     return res.status(200).json({
       success: true,
-      count: result.length,
-      data: result,
+      counts: {
+        upcoming: upcoming.length,
+        running: running.length,
+        past: past.length,
+      },
+      data: { upcoming, running, past },
     });
   } catch (error) {
-    console.error("UPCOMING EVENTS ERROR:", error);
-
+    console.error("DASHBOARD EVENTS ERROR:", error);
     return res.status(500).json({
       success: false,
       message: "Server error",
     });
   }
 };
+
+/** @deprecated use getDashboardEventsWithRegistrations — kept for route alias */
+export const getUpcomingEventsWithRegistrations = getDashboardEventsWithRegistrations;

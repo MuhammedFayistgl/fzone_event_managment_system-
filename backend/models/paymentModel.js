@@ -41,6 +41,16 @@ const paymentSchema = new mongoose.Schema(
       min: 0,
     },
 
+    guestCount: { type: Number, default: 0, min: 0 },
+
+    breakdown: {
+      investorAmount: { type: Number, default: 0 },
+      guestAmount: { type: Number, default: 0 },
+      guestCount: { type: Number, default: 0 },
+      payableGuestCount: { type: Number, default: 0 },
+      freeGuestCount: { type: Number, default: 0 },
+    },
+
     currency: {
       type: String,
       default: "INR",
@@ -51,7 +61,6 @@ const paymentSchema = new mongoose.Schema(
       type: String,
       enum: ["created", "success", "failed", "refunded"],
       default: "created",
-      index: true,
     },
 
     // ================= OPTIONAL META =================
@@ -82,11 +91,43 @@ const paymentSchema = new mongoose.Schema(
     refundAmount: {
       type: Number,
       min: 0,
+      default: 0,
+    },
+
+    refundReason: {
+      type: String,
+    },
+
+    refundedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Admin",
     },
 
     refundedAt: {
       type: Date,
     },
+
+    refunds: [
+      {
+        refundId: { type: String, required: true },
+        amount: { type: Number, required: true, min: 0 },
+        reason: { type: String, required: true },
+        note: { type: String, default: "" },
+        status: {
+          type: String,
+          enum: ["pending", "processed", "failed"],
+          default: "pending",
+        },
+        razorpayReceipt: { type: String },
+        speedRequested: { type: String },
+        speedProcessed: { type: String },
+        failureReason: { type: String },
+        initiatedAt: { type: Date, default: Date.now },
+        processedAt: { type: Date },
+        refundedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
+        refundedAt: { type: Date, default: Date.now },
+      },
+    ],
 
     // ================= LIFECYCLE =================
     paidAt: {

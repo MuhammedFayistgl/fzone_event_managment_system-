@@ -3,11 +3,12 @@ import { Search, MapPin, Users, Wallet, BadgeCheck, UserCheck } from "lucide-rea
 import { Input, InputGroup } from "rsuite";
 
 import { useAppDispatch, useAppSelector } from "../../hooks/hooks";
+import { useLiveEventSync } from "../../hooks/useLiveEventSync";
 import { eventRegistrationDetils_Get_ById } from "../../redux/Thunks/EventRegisrationDetilsThunk";
 import { getRegistrationInvestorName } from "../../utils/getRegistrationInvestorName";
-import RegistrationDataTable, {
-    REGISTRATION_TABLE_LAYOUTS,
-} from "../../components/registration/RegistrationDataTable";
+import { formatEventPricingLabel, formatCurrency } from "../../utils/pricing";
+import RegistrationAttendanceWorkspace from "../../components/registration/RegistrationAttendanceWorkspace";
+import RegistrationGenderStats from "../../components/registration/RegistrationGenderStats";
 
 type Props = {
   eventId?: string;
@@ -33,6 +34,8 @@ export default function EventRegistrationPanel({
   useEffect(() => {
     if (eventId) dispatch(eventRegistrationDetils_Get_ById(eventId));
   }, [dispatch, eventId]);
+
+  useLiveEventSync({ eventId, enabled: Boolean(eventId) });
 
   useEffect(() => {
     setSearch("");
@@ -81,7 +84,7 @@ export default function EventRegistrationPanel({
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <span className="px-3 py-1 rounded-full bg-cyan-500/20 text-app-cyan text-xs">{event.locationType}</span>
             <span className="px-3 py-1 rounded-full bg-app-surface border border-app-border text-app-text text-xs">
-              {event.isPaid ? "Paid" : "Free"}
+              {formatEventPricingLabel(event)}
             </span>
             {event.allowGuests && (
               <span className="px-3 py-1 rounded-full bg-fuchsia-500/20 text-app-fuchsia text-xs">Guests allowed</span>
@@ -96,12 +99,13 @@ export default function EventRegistrationPanel({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 p-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-6">
         {[
           { label: "Registrations", value: statistics?.totalRegistrations ?? 0, icon: Users, color: "from-cyan-500 to-blue-500" },
           { label: "Participants", value: statistics?.totalParticipants ?? 0, icon: UserCheck, color: "from-pink-500 to-fuchsia-500" },
           { label: "Checked in", value: statistics?.checkedInCount ?? 0, icon: BadgeCheck, color: "from-emerald-500 to-green-500" },
-          { label: "Pending", value: statistics?.pendingCheckInCount ?? 0, icon: Wallet, color: "from-amber-500 to-orange-500" },
+          { label: "Pending", value: statistics?.pendingCheckInCount ?? 0, icon: UserCheck, color: "from-amber-500 to-orange-500" },
+          { label: "Revenue", value: formatCurrency(statistics?.totalRevenue ?? 0), icon: Wallet, color: "from-violet-500 to-purple-500" },
         ].map((stat) => (
           <div key={stat.label} className="app-card-flat p-4">
             <p className="text-app-secondary text-xs uppercase tracking-wide">{stat.label}</p>
@@ -115,6 +119,10 @@ export default function EventRegistrationPanel({
         ))}
       </div>
 
+      <div className="px-6 pb-2">
+        <RegistrationGenderStats breakdown={statistics?.genderBreakdown} compact />
+      </div>
+
       <div className="px-6 pb-4">
         <InputGroup inside className="!bg-app-input !border !border-app-border !rounded-2xl">
           <Input placeholder="Search name or phone..." value={search} onChange={setSearch} className="!bg-transparent !text-app-text" />
@@ -122,18 +130,17 @@ export default function EventRegistrationPanel({
         </InputGroup>
       </div>
 
-      <div className="px-6 pb-6">
-        <div className="app-card-flat">
-          <RegistrationDataTable
-            rows={filtered}
-            columns={[...REGISTRATION_TABLE_LAYOUTS.attendancePanel]}
-            event={event}
-            showDeleteAction={false}
-            minWidth={800}
-          />
-        </div>
-        {statistics?.totalRevenue > 0 && (
-          <p className="text-right text-sm text-app-muted mt-4">Total revenue: ₹{statistics.totalRevenue}</p>
+      <div className="px-6 pb-6 reg-attendance-panel-body">
+        <RegistrationAttendanceWorkspace
+          rows={filtered}
+          event={event}
+          eventId={eventId}
+          loading={loading}
+        />
+        {(statistics?.totalRevenue ?? 0) > 0 && (
+          <p className="text-right text-sm text-app-muted mt-4">
+            Total revenue: {formatCurrency(statistics.totalRevenue)}
+          </p>
         )}
       </div>
     </div>

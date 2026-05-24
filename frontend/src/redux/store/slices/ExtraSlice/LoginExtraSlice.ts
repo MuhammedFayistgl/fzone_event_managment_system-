@@ -1,12 +1,6 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import API from "../../../../api/axios";
 
-
-interface DataProps {
-    email: string;
-    password: string;
-}
-
 // ✅ Signup
 export const SignupAdmin = createAsyncThunk(
     "admin/signup",

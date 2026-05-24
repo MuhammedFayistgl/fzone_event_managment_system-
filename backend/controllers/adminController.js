@@ -11,6 +11,25 @@ import {
     formatRegistrationInvestor,
 } from "../utils/resolveRegistrationInvestors.js";
 import { buildInvestorSearchFilter } from "../utils/investorSearch.js";
+import {
+    buildRegistrationGenderBreakdown,
+    aggregateGuestGenderFromPipeline,
+    guestCountsFromAgg,
+} from "../utils/gender.js";
+import { emitRegistrationBlocked } from "../live/liveHub.js";
+import { clearDashboardCache, notifyDashboardMetricsChanged } from "../utils/dashboardCache.js";
+import razorpay, { isRazorpayConfigured } from "../utils/razorpayClient.js";
+import {
+    REFUND_REASONS,
+    applyRefundToPayment,
+    getRefundableRemaining,
+    getLatestRefundStatus,
+    mapRefundEntry,
+    previewAccessAfterRefund,
+    syncAccessAfterRefund,
+} from "../utils/paymentRefund.js";
+import { logAuditAction } from "../utils/auditLog.js";
+import { notifyUser } from "../utils/notifications.js";
 
 
 
@@ -21,7 +40,7 @@ const clearInvestorCache = async () => {
         if (keys.length > 0) {
             await redisClient.del(keys);
         }
-        await redisClient.del("dashboard:summary:v2");
+        await clearDashboardCache();
     } catch (err) {
         console.log("Redis clear error:", err);
     }
@@ -190,7 +209,7 @@ export const fetchInvestorData = async (req, res) => {
 // 🔹 DASHBOARD SUMMARY
 export const getDashboardSummary = async (req, res) => {
     try {
-        const cacheKey = "dashboard:summary:v2";
+        const cacheKey = "dashboard:summary:v5";
 
         const cachedData = await redisClient.get(cacheKey);
 
@@ -218,32 +237,115 @@ export const getDashboardSummary = async (req, res) => {
             {}
         );
 
-        const entryPassesIssued = await RegEventModel.estimatedDocumentCount();
-        const verifiedCheckIns = await RegEventModel.countDocuments({ isCheckedIn: true });
-
-        const guestAgg = await RegEventModel.aggregate([
-            {
-                $project: {
-                    guestCount: { $size: { $ifNull: ["$participants", []] } },
-                },
-            },
+        const passStats = await RegEventModel.aggregate([
             {
                 $group: {
                     _id: null,
-                    subMembers: { $sum: "$guestCount" },
+                    totalRegistrations: { $sum: 1 },
+                    guestPasses: {
+                        $sum: { $size: { $ifNull: ["$participants", []] } },
+                    },
+                    investorCheckIns: {
+                        $sum: { $cond: [{ $eq: ["$isCheckedIn", true] }, 1, 0] },
+                    },
                 },
             },
         ]);
 
+        const guestCheckInAgg = await RegEventModel.aggregate([
+            { $unwind: "$participants" },
+            { $match: { "participants.isCheckedIn": true } },
+            { $count: "guestCheckIns" },
+        ]);
+
+        const totalRegistrations = passStats[0]?.totalRegistrations || 0;
+        const guestPasses = passStats[0]?.guestPasses || 0;
+        const investorPasses = totalRegistrations;
+        const entryPassesIssued = investorPasses + guestPasses;
+        const investorCheckIns = passStats[0]?.investorCheckIns || 0;
+        const guestCheckIns = guestCheckInAgg[0]?.guestCheckIns || 0;
+        const verifiedCheckIns = investorCheckIns + guestCheckIns;
+        const pendingCheckIn = Math.max(entryPassesIssued - verifiedCheckIns, 0);
+        const checkInRate =
+            entryPassesIssued > 0
+                ? Math.round((verifiedCheckIns / entryPassesIssued) * 100)
+                : 0;
+
+        const revenueAgg = await Payment.aggregate([
+            { $match: { status: { $in: ["success", "refunded"] } } },
+            {
+                $project: {
+                    amount: { $ifNull: ["$amount", 0] },
+                    processedRefund: {
+                        $sum: {
+                            $map: {
+                                input: {
+                                    $filter: {
+                                        input: { $ifNull: ["$refunds", []] },
+                                        as: "refund",
+                                        cond: { $eq: ["$$refund.status", "processed"] },
+                                    },
+                                },
+                                as: "processed",
+                                in: { $ifNull: ["$$processed.amount", 0] },
+                            },
+                        },
+                    },
+                    fallbackRefund: {
+                        $cond: [
+                            { $eq: ["$status", "refunded"] },
+                            { $ifNull: ["$refundAmount", "$amount"] },
+                            0,
+                        ],
+                    },
+                },
+            },
+            {
+                $project: {
+                    netRevenue: {
+                        $max: [
+                            0,
+                            {
+                                $subtract: [
+                                    "$amount",
+                                    {
+                                        $cond: [
+                                            { $gt: ["$processedRefund", 0] },
+                                            "$processedRefund",
+                                            "$fallbackRefund",
+                                        ],
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                },
+            },
+            { $group: { _id: null, totalRevenue: { $sum: "$netRevenue" } } },
+        ]);
+        const totalRevenue = revenueAgg[0]?.totalRevenue || 0;
+
+        const guestGenderAgg = await RegEventModel.aggregate(
+            aggregateGuestGenderFromPipeline()
+        );
+        const guestGenderCounts = guestCountsFromAgg(guestGenderAgg);
+
         const result = {
             totalInvestors,
+            totalRegistrations,
+            entryPassesIssued,
+            investorPasses,
+            guestPasses,
+            verifiedCheckIns,
+            pendingCheckIn,
+            checkInRate,
+            totalRevenue,
             maleCount: countByGender.Male || 0,
             femaleCount: countByGender.Female || 0,
             otherCount: countByGender.Other || 0,
-            entryPassesIssued,
-            verifiedCheckIns,
-            mainMembers: entryPassesIssued,
-            subMembers: guestAgg[0]?.subMembers || 0,
+            ...guestGenderCounts,
+            mainMembers: totalRegistrations,
+            subMembers: guestPasses,
         };
 
         await redisClient.setEx(cacheKey, 120, JSON.stringify(result));
@@ -552,6 +654,7 @@ export const registrationDetails = async (req, res) => {
           Code_No
           Name
           Phone_No
+          Gender
           role
           createdAt
           updatedAt
@@ -583,6 +686,8 @@ export const registrationDetails = async (req, res) => {
         currency
         status
         method
+        guestCount
+        breakdown
         razorpay_order_id
         razorpay_payment_id
         razorpay_signature
@@ -596,11 +701,28 @@ export const registrationDetails = async (req, res) => {
       `)
             .lean();
 
+        const paidTotalByPhone = {};
+        const successPaymentsByPhone = {};
+
+        for (const payment of payments) {
+            const phone = payment.phone;
+            if (!successPaymentsByPhone[phone]) {
+                successPaymentsByPhone[phone] = [];
+            }
+            if (payment.status === "success") {
+                successPaymentsByPhone[phone].push(payment);
+                paidTotalByPhone[phone] =
+                    (paidTotalByPhone[phone] || 0) + Number(payment.amount || 0);
+            }
+        }
+
         // ================= FORMAT REGISTRATION DATA =================
         const formattedRegistrations = registrations.map((registration) => {
-            const payment = payments.find(
-                (item) => item.phone === registration.phone
-            );
+            const phone = registration.phone;
+            const phonePayments = payments.filter((item) => item.phone === phone);
+            const latestPayment = phonePayments[0] || null;
+            const successPayments = successPaymentsByPhone[phone] || [];
+            const paidTotal = paidTotalByPhone[phone] || 0;
 
             return {
                 _id: registration._id,
@@ -629,7 +751,19 @@ export const registrationDetails = async (req, res) => {
 
                 checkedInAt: registration.checkedInAt || null,
 
-                payment: payment || null,
+                isBlocked: Boolean(registration.isBlocked),
+                blockedAt: registration.blockedAt || null,
+                blockedReason: registration.blockedReason || "",
+
+                payment: latestPayment
+                    ? {
+                        ...latestPayment,
+                        paidTotal,
+                        successPayments,
+                    }
+                    : paidTotal > 0
+                      ? { paidTotal, successPayments, status: "success" }
+                      : null,
 
                 createdAt: registration.createdAt,
 
@@ -646,13 +780,16 @@ export const registrationDetails = async (req, res) => {
             0
         );
 
-        const checkedInCount = registrations.filter(
-            (item) => item.isCheckedIn
-        ).length;
+        const checkedInCount = registrations.filter((item) => {
+            if (item.isCheckedIn) return true;
+            return (item.participants || []).some((p) => p.isCheckedIn);
+        }).length;
 
-        const pendingCheckInCount = registrations.filter(
-            (item) => !item.isCheckedIn
-        ).length;
+        const pendingCheckInCount = registrations.filter((item) => {
+            if (item.isCheckedIn) return false;
+            const anyGuestCheckedIn = (item.participants || []).some((p) => p.isCheckedIn);
+            return !anyGuestCheckedIn;
+        }).length;
 
         const successfulPayments = payments.filter(
             (item) => item.status === "success"
@@ -669,6 +806,11 @@ export const registrationDetails = async (req, res) => {
         const totalRevenue = successfulPayments.reduce(
             (acc, curr) => acc + curr.amount,
             0
+        );
+
+        const genderBreakdown = buildRegistrationGenderBreakdown(
+            registrations,
+            investorByPhone
         );
 
         // ================= RESPONSE =================
@@ -692,6 +834,8 @@ export const registrationDetails = async (req, res) => {
                     refundedPayments: refundedPayments.length,
 
                     totalRevenue,
+
+                    genderBreakdown,
                 },
 
                 registrations: formattedRegistrations,
@@ -707,6 +851,583 @@ export const registrationDetails = async (req, res) => {
                 process.env.NODE_ENV === "development"
                     ? error.message
                     : undefined,
+        });
+    }
+};
+
+function buildPaymentLedgerQuery(body = {}) {
+    const {
+        eventId,
+        status = "all",
+        search = "",
+        dateFrom,
+        dateTo,
+    } = body;
+
+    const query = {};
+
+    if (eventId && mongoose.Types.ObjectId.isValid(eventId)) {
+        query.eventId = new mongoose.Types.ObjectId(eventId);
+    }
+
+    if (status && status !== "all") {
+        query.status = status === "pending" ? "created" : status;
+    }
+
+    if (dateFrom || dateTo) {
+        query.createdAt = {};
+        if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+        if (dateTo) query.createdAt.$lte = new Date(dateTo);
+    }
+
+    return { query, search: String(search || "").trim() };
+}
+
+async function applyPaymentSearch(query, search) {
+    if (!search) return query;
+
+    const or = [
+        { razorpay_order_id: { $regex: search, $options: "i" } },
+        { razorpay_payment_id: { $regex: search, $options: "i" } },
+    ];
+
+    const digits = search.replace(/\D/g, "");
+    if (digits.length >= 4) {
+        or.push({ phone: { $regex: digits } });
+    }
+
+    const nameMatches = await investorsModal
+        .find({ Name: { $regex: search, $options: "i" } })
+        .select("Phone_No")
+        .limit(100)
+        .lean();
+
+    const phones = nameMatches
+        .map((item) => String(item.Phone_No || "").replace(/\D/g, ""))
+        .filter(Boolean);
+
+    if (phones.length) {
+        or.push({ phone: { $in: phones } });
+    }
+
+    return { ...query, $or: or };
+}
+
+function getRowProcessedRefund(row) {
+    if (Array.isArray(row.refunds) && row.refunds.length) {
+        return row.refunds
+            .filter((entry) => entry.status === "processed")
+            .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+    }
+    if (row.status === "refunded") {
+        return Number(row.refundAmount || row.amount || 0);
+    }
+    return 0;
+}
+
+function getRowActiveRefund(row) {
+    if (Array.isArray(row.refunds) && row.refunds.length) {
+        return row.refunds
+            .filter((entry) => entry.status !== "failed")
+            .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+    }
+    return Number(row.refundAmount || 0);
+}
+
+function summarizePayments(rows = []) {
+    let totalRevenue = 0;
+    let successfulCount = 0;
+    let failedCount = 0;
+    let pendingCount = 0;
+    let refundedCount = 0;
+    let refundedAmount = 0;
+
+    for (const row of rows) {
+        const amount = Number(row.amount || 0);
+        const processedRefund = getRowProcessedRefund(row);
+        const activeRefund = getRowActiveRefund(row);
+
+        if (row.status === "success") {
+            successfulCount += 1;
+            totalRevenue += Math.max(0, amount - processedRefund);
+            if (processedRefund > 0) {
+                refundedAmount += processedRefund;
+                refundedCount += 1;
+            }
+        } else if (row.status === "failed") {
+            failedCount += 1;
+        } else if (row.status === "created") {
+            pendingCount += 1;
+        } else if (row.status === "refunded") {
+            refundedCount += 1;
+            refundedAmount += processedRefund || activeRefund || amount;
+            totalRevenue += Math.max(0, amount - (processedRefund || activeRefund || amount));
+        }
+    }
+
+    return {
+        totalRevenue,
+        successfulCount,
+        failedCount,
+        pendingCount,
+        refundedCount,
+        refundedAmount,
+    };
+}
+
+function formatPaymentLedgerRow(payment, investor = null) {
+    const eventDoc = payment.eventId;
+    const eventIsRefundable = Boolean(eventDoc?.isRefundable);
+    const refundableRemaining = getRefundableRemaining(payment);
+    const latestRefundStatus = getLatestRefundStatus(payment);
+    const canRefund =
+        payment.status === "success" &&
+        refundableRemaining > 0 &&
+        Boolean(payment.razorpay_payment_id) &&
+        eventIsRefundable;
+
+    return {
+        _id: payment._id,
+        eventId: eventDoc?._id || payment.eventId,
+        event: eventDoc
+            ? {
+                  _id: eventDoc._id,
+                  title: eventDoc.title,
+                  startTime: eventDoc.startTime,
+                  endTime: eventDoc.endTime,
+                  isRefundable: eventDoc.isRefundable,
+              }
+            : null,
+        phone: payment.phone,
+        investorName: investor?.Name || null,
+        investorCode: investor?.Code_No || null,
+        amount: payment.amount,
+        currency: payment.currency || "INR",
+        status: payment.status,
+        method: payment.method || null,
+        guestCount: payment.guestCount ?? 0,
+        breakdown: payment.breakdown || null,
+        razorpay_order_id: payment.razorpay_order_id,
+        razorpay_payment_id: payment.razorpay_payment_id || null,
+        paidAt: payment.paidAt || null,
+        failedAt: payment.failedAt || null,
+        refundedAt: payment.refundedAt || null,
+        refundAmount: payment.refundAmount || null,
+        refundReason: payment.refundReason || null,
+        refunds: (payment.refunds || []).map(mapRefundEntry),
+        latestRefundStatus,
+        isRefundable: eventIsRefundable,
+        refundableRemaining,
+        canRefund,
+        createdAt: payment.createdAt,
+        updatedAt: payment.updatedAt,
+    };
+}
+
+export const paymentLedger = async (req, res) => {
+    try {
+        const page = Math.max(Number(req.body?.page) || 1, 1);
+        const limit = Math.min(Math.max(Number(req.body?.limit) || 25, 1), 100);
+
+        const { query: baseQuery, search } = buildPaymentLedgerQuery(req.body);
+        const query = await applyPaymentSearch(baseQuery, search);
+
+        const [statsRows, total, payments] = await Promise.all([
+            Payment.find(query)
+                .select("amount status refundAmount refunds")
+                .lean(),
+            Payment.countDocuments(query),
+            Payment.find(query)
+                .populate("eventId", "title startTime endTime isRefundable")
+                .sort({ createdAt: -1 })
+                .skip((page - 1) * limit)
+                .limit(limit)
+                .lean(),
+        ]);
+
+        const statistics = summarizePayments(statsRows);
+        const investorByPhone = await buildInvestorLookupByPhone(
+            payments.map((item) => item.phone)
+        );
+
+        const formattedPayments = payments.map((payment) => {
+            const phoneKey = String(payment.phone || "").replace(/\D/g, "");
+            const investor = investorByPhone.get(phoneKey) || null;
+            return formatPaymentLedgerRow(payment, investor);
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                statistics,
+                payments: formattedPayments,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages: Math.ceil(total / limit) || 1,
+                },
+            },
+        });
+    } catch (error) {
+        console.error("Payment Ledger Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch payment ledger",
+        });
+    }
+};
+
+export const issuePaymentRefund = async (req, res) => {
+    try {
+        const { paymentId } = req.params;
+        const { amount, reason, note, revokeAccess = true } = req.body || {};
+
+        if (!mongoose.Types.ObjectId.isValid(paymentId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid payment ID",
+            });
+        }
+
+        if (!REFUND_REASONS.includes(reason)) {
+            return res.status(400).json({
+                success: false,
+                message: "A valid refund reason is required",
+            });
+        }
+
+        if (!isRazorpayConfigured()) {
+            return res.status(503).json({
+                success: false,
+                message: "Razorpay is not configured",
+            });
+        }
+
+        const payment = await Payment.findById(paymentId);
+        if (!payment) {
+            return res.status(404).json({
+                success: false,
+                message: "Payment not found",
+            });
+        }
+
+        if (payment.status !== "success") {
+            return res.status(400).json({
+                success: false,
+                message: "Only successful payments can be refunded",
+            });
+        }
+
+        if (!payment.razorpay_payment_id) {
+            return res.status(400).json({
+                success: false,
+                message: "Razorpay payment ID missing — cannot refund",
+            });
+        }
+
+        const event = await eventModel
+            .findById(payment.eventId)
+            .select("isRefundable title")
+            .lean();
+
+        if (!event?.isRefundable) {
+            return res.status(400).json({
+                success: false,
+                message: "This event is not marked as refundable",
+            });
+        }
+
+        const remaining = getRefundableRemaining(payment);
+        if (remaining <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Payment is already fully refunded",
+            });
+        }
+
+        const refundAmount =
+            amount != null && amount !== "" ? Number(amount) : remaining;
+
+        if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid refund amount",
+            });
+        }
+
+        if (refundAmount > remaining + 0.001) {
+            return res.status(400).json({
+                success: false,
+                message: `Maximum refundable amount is ${remaining}`,
+            });
+        }
+
+        const razorpayRefund = await razorpay.payments.refund(
+            payment.razorpay_payment_id,
+            {
+                amount: Math.round(refundAmount * 100),
+                notes: {
+                    reason,
+                    note: String(note || "").trim(),
+                    paymentMongoId: payment._id.toString(),
+                },
+            }
+        );
+
+        const adminId = req.user?.id || req.user?._id || null;
+        const refundStatus = String(razorpayRefund?.status || "pending").toLowerCase();
+        const { payment: updated, applied } = await applyRefundToPayment(payment, {
+            refundId: razorpayRefund.id,
+            amount: refundAmount,
+            reason,
+            note,
+            refundedBy: adminId,
+            status: refundStatus,
+            razorpayReceipt: razorpayRefund?.receipt || "",
+            speedRequested: razorpayRefund?.speed_requested || "",
+            speedProcessed: razorpayRefund?.speed_processed || "",
+            initiatedAt: razorpayRefund?.created_at
+                ? new Date(Number(razorpayRefund.created_at) * 1000)
+                : new Date(),
+            processedAt:
+                refundStatus === "processed"
+                    ? new Date()
+                    : null,
+        });
+
+        if (!applied) {
+            return res.status(409).json({
+                success: false,
+                message: "Refund already recorded",
+            });
+        }
+
+        let accessImpact = null;
+        if (revokeAccess !== false) {
+            accessImpact = await syncAccessAfterRefund(
+                payment.eventId,
+                payment.phone,
+                {
+                    reason:
+                        note ||
+                        `Refund: ${String(reason).replace(/_/g, " ")}`,
+                }
+            );
+        }
+
+        await logAuditAction({
+            action: "payment.refund",
+            category: "refund",
+            actor: req.user,
+            targetType: "payment",
+            targetId: updated._id,
+            eventId: payment.eventId,
+            phone: payment.phone,
+            metadata: {
+                amount: refundAmount,
+                reason,
+                note,
+                accessImpact,
+            },
+            req,
+        });
+
+        notifyUser({
+            phone: payment.phone,
+            eventTitle: event?.title || "Event",
+            template: "refund_processed",
+            message: `A refund of INR ${refundAmount} has been initiated for your ${event?.title || "event"} registration.`,
+        }).catch(() => {});
+
+        await notifyDashboardMetricsChanged();
+
+        const investorByPhone = await buildInvestorLookupByPhone([updated.phone]);
+        const phoneKey = String(updated.phone || "").replace(/\D/g, "");
+        const investor = investorByPhone.get(phoneKey) || null;
+        const populated = await Payment.findById(updated._id)
+            .populate("eventId", "title startTime endTime isRefundable")
+            .lean();
+
+        const responseMessage =
+            refundStatus === "processed"
+                ? "Refund sent via Razorpay to original payment method"
+                : "Refund initiated — processing via Razorpay (typically 5–7 business days for some methods)";
+
+        return res.status(200).json({
+            success: true,
+            message: responseMessage,
+            data: formatPaymentLedgerRow(populated, investor),
+            accessImpact,
+        });
+    } catch (error) {
+        console.error("Issue Payment Refund Error:", error);
+        const message =
+            error?.error?.description ||
+            error?.message ||
+            "Failed to process refund";
+        return res.status(500).json({
+            success: false,
+            message,
+        });
+    }
+};
+
+export const previewPaymentRefundAccess = async (req, res) => {
+    try {
+        const { paymentId } = req.params;
+        const { amount } = req.body || {};
+
+        if (!mongoose.Types.ObjectId.isValid(paymentId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid payment ID",
+            });
+        }
+
+        const payment = await Payment.findById(paymentId);
+        if (!payment) {
+            return res.status(404).json({
+                success: false,
+                message: "Payment not found",
+            });
+        }
+
+        const refundAmount = Number(amount);
+        if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid refund amount",
+            });
+        }
+
+        const accessImpact = await previewAccessAfterRefund(
+            payment.eventId,
+            payment.phone,
+            refundAmount
+        );
+
+        if (!accessImpact) {
+            return res.status(404).json({
+                success: false,
+                message: "Registration not found for this payment",
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: accessImpact,
+        });
+    } catch (error) {
+        console.error("Preview Payment Refund Access Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: error?.message || "Failed to preview refund access impact",
+        });
+    }
+};
+
+export const blockRegistrationParticipant = async (req, res) => {
+    try {
+        const { registrationId } = req.params;
+        const { target, guestIndex, blocked, reason } = req.body;
+
+        if (!mongoose.Types.ObjectId.isValid(registrationId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid registration ID",
+            });
+        }
+
+        if (!["investor", "guest"].includes(target)) {
+            return res.status(400).json({
+                success: false,
+                message: "target must be investor or guest",
+            });
+        }
+
+        if (typeof blocked !== "boolean") {
+            return res.status(400).json({
+                success: false,
+                message: "blocked must be a boolean",
+            });
+        }
+
+        const registration = await RegEventModel.findById(registrationId);
+        if (!registration) {
+            return res.status(404).json({
+                success: false,
+                message: "Registration not found",
+            });
+        }
+
+        const now = blocked ? new Date() : null;
+        const reasonText = blocked ? String(reason || "").trim() : "";
+
+        if (target === "investor") {
+            registration.isBlocked = blocked;
+            registration.blockedAt = now;
+            registration.blockedReason = reasonText;
+        } else {
+            const index = Number(guestIndex);
+            if (!Number.isInteger(index) || index < 0 || index >= registration.participants.length) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid guest index",
+                });
+            }
+            registration.participants[index].isBlocked = blocked;
+            registration.participants[index].blockedAt = now;
+            registration.participants[index].blockedReason = reasonText;
+            registration.markModified("participants");
+        }
+
+        await registration.save();
+
+        const resolvedGuestIndex = target === "guest" ? Number(guestIndex) : null;
+
+        await logAuditAction({
+            action: blocked ? "registration.block" : "registration.unblock",
+            category: "block",
+            actor: req.user,
+            targetType: target,
+            targetId: registration._id,
+            eventId: registration.eventId,
+            phone: registration.phone,
+            metadata: { guestIndex: resolvedGuestIndex, reason: reasonText },
+            req,
+        });
+
+        emitRegistrationBlocked({
+            eventId: String(registration.eventId),
+            registrationId: String(registration._id),
+            phone: registration.phone,
+            target,
+            guestIndex: resolvedGuestIndex,
+            participantId:
+                target === "guest" && resolvedGuestIndex != null
+                    ? String(registration.participants[resolvedGuestIndex]?._id || "")
+                    : null,
+            isBlocked: blocked,
+            blockedReason: reasonText,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: blocked ? "Entry blocked" : "Block removed",
+            data: {
+                _id: registration._id,
+                isBlocked: registration.isBlocked,
+                blockedAt: registration.blockedAt,
+                blockedReason: registration.blockedReason,
+                participants: registration.participants,
+            },
+        });
+    } catch (error) {
+        console.error("Block Registration Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to update block status",
         });
     }
 };

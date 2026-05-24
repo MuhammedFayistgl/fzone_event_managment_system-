@@ -5,12 +5,6 @@ import RegEventModel from "../models/EventRegistrationModel.js";
 import Payment from "../models/paymentModel.js";
 import { registerEvent } from "../controllers/registrationController.js";
 import { registrationDetails } from "../controllers/adminController.js";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DEBUG_LOG = path.join(__dirname, "../../.cursor/debug-715abf.log");
 
 const EVENT_ID = "69f04c9a984bed46555ca977";
 
@@ -45,7 +39,8 @@ await Payment.create({
     phone,
     razorpay_order_id: `test_order_${Date.now()}`,
     razorpay_payment_id: `test_pay_${Date.now()}`,
-    amount: event.price || 100,
+    amount: event.investorPrice || event.price || 100,
+    guestCount: 0,
     status: "success",
 });
 
@@ -63,23 +58,14 @@ const apiReg = detailsRes.getBody()?.data?.registrations?.find(
 );
 
 const payload = {
-    sessionId: "715abf",
-    runId: "e2e-salse-workshop",
-    hypothesisId: "C",
-    location: "e2eRegistrationNameTest.js",
-    message: "SALSE WORKSHOP registration shows investor name",
-    data: {
-        registerStatus: registerRes.getStatus(),
-        registerMessage: registerRes.getBody()?.message,
-        expectedName: investor.Name,
-        apiInvestorName: apiReg?.investor?.Name || null,
-        apiStoredName: apiReg?.investorName || null,
-        fixWorks: apiReg?.investor?.Name === investor.Name,
-    },
-    timestamp: Date.now(),
+    registerStatus: registerRes.getStatus(),
+    registerMessage: registerRes.getBody()?.message,
+    expectedName: investor.Name,
+    apiInvestorName: apiReg?.investor?.Name || null,
+    apiStoredName: apiReg?.investorName || null,
+    fixWorks: apiReg?.investor?.Name === investor.Name,
 };
 
-fs.appendFileSync(DEBUG_LOG, `${JSON.stringify(payload)}\n`);
-console.log(JSON.stringify(payload.data, null, 2));
+console.log(JSON.stringify(payload, null, 2));
 
 await mongoose.disconnect();

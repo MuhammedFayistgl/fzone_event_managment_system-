@@ -5,9 +5,13 @@ import {
   deleteEvent,
   fetchCreatedEvents,
   GetOneEventById,
-  updateEvent
+  updateEvent,
+  uploadTicketBackground,
+  deleteTicketBackground,
+  updateTicketDesignMode,
 } from "./EventThunks";
-import type { EventDay } from "../Types/event";
+import type { EventDay, TicketDesign } from "../Types/event";
+import { normalizeEventPricing } from "../utils/pricing";
 
 // ================= TYPES =================
 
@@ -22,11 +26,17 @@ interface EventForm {
   maxPerUser: number;
   isPaid: boolean;
   price: number;
+  investorIsFree: boolean;
+  investorPrice: number;
+  guestPaymentEnabled: boolean;
+  guestPrice: number;
+  freeGuestCount: number;
   isRefundable: boolean;
   allowGuests: boolean;
   locationType: "online" | "offline";
   location: string;
   eventDays: EventDay[];
+  ticketDesign: TicketDesign;
 }
 
 interface EventType {
@@ -37,6 +47,11 @@ interface EventType {
   location: string;
   isPaid: boolean;
   price: number;
+  investorIsFree?: boolean;
+  investorPrice?: number;
+  guestPaymentEnabled?: boolean;
+  guestPrice?: number;
+  freeGuestCount?: number;
   eventDays?: any[];
   registrationStart?: string;
   registrationDeadline?: string;
@@ -44,6 +59,7 @@ interface EventType {
   allowGuests?: boolean;
   maxPerUser?: number;
   maxParticipants?: number;
+  ticketDesign?: TicketDesign;
 }
 
 interface EventState {
@@ -72,11 +88,17 @@ const initialState: EventState = {
     maxPerUser: 1,
     isPaid: false,
     price: 0,
+    investorIsFree: false,
+    investorPrice: 0,
+    guestPaymentEnabled: false,
+    guestPrice: 0,
+    freeGuestCount: 0,
     isRefundable: false,
     allowGuests: false,
     locationType: "online",
     location: "",
-    eventDays: []
+    eventDays: [],
+    ticketDesign: { mode: "default", textTheme: "dark" },
   },
   events: [],
   loading: false,
@@ -105,7 +127,23 @@ const slice = createSlice({
 
     // ✅ SET FULL FORM (EDIT)
     setFormData: (state, action: PayloadAction<any>) => {
-      state.form = { ...state.form, ...action.payload };
+      const payload = action.payload;
+      const investorPrice = Number(payload.investorPrice ?? payload.price ?? 0);
+      const investorIsFree = payload.investorIsFree ?? (payload.isPaid ? investorPrice <= 0 : true);
+      state.form = {
+        ...state.form,
+        ...payload,
+        investorPrice,
+        investorIsFree,
+        guestPaymentEnabled: Boolean(payload.guestPaymentEnabled),
+        guestPrice: Number(payload.guestPrice ?? 0),
+        freeGuestCount: Number(payload.freeGuestCount ?? 0),
+        ticketDesign: payload.ticketDesign ?? {
+          mode: "default",
+          textTheme: "dark",
+          backgroundUrl: null,
+        },
+      };
     },
 
     // ✅ SET EDIT MODE
@@ -133,6 +171,7 @@ const slice = createSlice({
       })
       .addCase(createEvent.fulfilled, (state) => {
         state.loading = false;
+        state.error = null;
       })
       .addCase(createEvent.rejected, (state, action: any) => {
         state.loading = false;
@@ -151,7 +190,10 @@ const slice = createSlice({
       })
       .addCase(fetchCreatedEvents.fulfilled, (state, action: any) => {
         state.loading = false;
-        state.events = action.payload?.data || action.payload || [];
+        const raw = action.payload?.data || action.payload || [];
+        state.events = Array.isArray(raw)
+          ? raw.map((event: any) => ({ ...event, ...normalizeEventPricing(event) }))
+          : raw;
       })
       .addCase(fetchCreatedEvents.rejected, (state, action: any) => {
         state.loading = false;
@@ -172,8 +214,10 @@ const slice = createSlice({
       .addCase(GetOneEventById.fulfilled, (state, action: any) => {
         state.loading = false;
 
-        state.singleEvent =
-          action.payload?.data || null;
+        const data = action.payload?.data || null;
+        state.singleEvent = data
+          ? { ...data, ...normalizeEventPricing(data) }
+          : null;
       })
       .addCase(GetOneEventById.rejected, (state, action: any) => {
         state.loading = false;
@@ -216,6 +260,7 @@ const slice = createSlice({
       })
       .addCase(updateEvent.fulfilled, (state, action: any) => {
         state.loading = false;
+        state.error = null;
 
         const updated = action.payload?.data;
 
@@ -231,11 +276,18 @@ const slice = createSlice({
         state.error = action.payload?.message || "Update failed";
       })
 
-
-
-
-
-
+      .addCase(uploadTicketBackground.fulfilled, (state, action: any) => {
+        const td = action.payload?.data;
+        if (td) state.form.ticketDesign = { ...state.form.ticketDesign, ...td };
+      })
+      .addCase(deleteTicketBackground.fulfilled, (state, action: any) => {
+        const td = action.payload?.data;
+        if (td) state.form.ticketDesign = { ...state.form.ticketDesign, ...td };
+      })
+      .addCase(updateTicketDesignMode.fulfilled, (state, action: any) => {
+        const td = action.payload?.data;
+        if (td) state.form.ticketDesign = { ...state.form.ticketDesign, ...td };
+      });
 
     builder
       .addCase(closeEventRegistration.pending, (state) => {

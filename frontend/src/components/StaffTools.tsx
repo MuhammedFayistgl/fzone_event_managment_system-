@@ -6,12 +6,29 @@ const StaffTools: FC = () => {
     const navigation = useNavigate();
 
     const items = [
-        { label: "User Management (IDs)", path: "/user-management" },
-        { label: "Gate Scanner App", path: "/gate-scanner" },
-        { label: "Attendance Logs", path: "/attendance-logs" },
-        { label: "Create Event", path: "/event" },
-        { label: "Settings", path: "/settings", icon: FaGear },
+        { label: "User Management (IDs)", path: "/user-management", roles: ["admin"] },
+        { label: "Gate Scanner App", path: "/gate-scanner", roles: ["admin", "scanner"] },
+        { label: "Attendance Logs", path: "/attendance-logs", roles: ["admin", "scanner"] },
+        { label: "Payments & Revenue", path: "/payments", roles: ["admin", "finance"] },
+        { label: "Finance Reconciliation", path: "/finance/reconciliation", roles: ["admin", "finance"] },
+        { label: "Audit Log", path: "/platform/audit-log", roles: ["admin"] },
+        { label: "Webhook Deliveries", path: "/platform/webhooks", roles: ["admin"] },
+        { label: "Create Event", path: "/event", hint: "Includes ticket background design", roles: ["admin"] },
+        { label: "Settings", path: "/settings", icon: FaGear, roles: ["admin"] },
     ];
+
+    const token = localStorage.getItem("accessToken");
+    let role = "admin";
+    try {
+        if (token) {
+            const payload = JSON.parse(atob(token.split(".")[1] || ""));
+            role = payload.role || "admin";
+        }
+    } catch {
+        role = "admin";
+    }
+
+    const visibleItems = items.filter((item) => item.roles.includes(role));
 
     return (
         <div className="w-full">
@@ -26,7 +43,7 @@ const StaffTools: FC = () => {
             </div>
 
             <div className="flex flex-col divide-y divide-app-border">
-                {items.map((item) => {
+                {visibleItems.map((item) => {
                     const Icon = item.icon || FaUsersGear;
                     return (
                         <button
@@ -37,9 +54,14 @@ const StaffTools: FC = () => {
                         >
                             <div className="flex items-center gap-3">
                                 <Icon className="text-app-muted group-hover:text-app-accent transition" />
-                                <span className="text-sm font-medium text-app-text">
-                                    {item.label}
-                                </span>
+                                <div className="text-left">
+                                    <span className="text-sm font-medium text-app-text block">
+                                        {item.label}
+                                    </span>
+                                    {"hint" in item && item.hint && (
+                                        <span className="text-xs text-app-muted">{item.hint}</span>
+                                    )}
+                                </div>
                             </div>
                             <span className="text-app-muted group-hover:text-app-accent">→</span>
                         </button>

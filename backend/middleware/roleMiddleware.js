@@ -23,4 +23,8 @@ export function requireRole(...allowedRoles) {
   };
 }
 
+export function requireAnyRole(...allowedRoles) {
+  return requireRole(...allowedRoles);
+}
+
 export default requireRole;

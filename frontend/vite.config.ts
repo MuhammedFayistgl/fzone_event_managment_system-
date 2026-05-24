@@ -15,11 +15,13 @@ export default defineConfig({
     proxy: {
       "/admin": { target: apiTarget, changeOrigin: true, secure: false },
       "^/user/": { target: apiTarget, changeOrigin: true, secure: false },
+      "/socket.io": { target: apiTarget, changeOrigin: true, secure: false, ws: true },
       "^/event/.+/close-registration$": {
         target: apiTarget,
         changeOrigin: true,
         secure: false,
       },
+      "/uploads": { target: apiTarget, changeOrigin: true, secure: false },
     },
   },
 });

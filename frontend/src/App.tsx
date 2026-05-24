@@ -1,26 +1,56 @@
-import { Routes, Route } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./routes/ProtectedRoute";
-import Overview from "./Body/Overview";
-import InvestorsTable from "./components/InvestorsTable";
+import AdminShell from "./layouts/AdminShell";
+import PublicShell from "./layouts/PublicShell";
+import { setAccessToken } from "./api/axios";
 import SignupComponent from "./login/SiginComponent";
 import LoginComponent from "./login/LoginComponent";
-import { setAccessToken } from "./api/axios";
-import CreateEventPage from "./pages/CreateEventPage";
-import EventRegisterPage from "./pages/EventRegisterPage";
-import RecentRegistrationsContainer from "./components/ResentRegistration/RecentRegistrationsContainer";
-import EventCardDashbordDetils from "./components/running_eventCard/EventCardDashbordDetils";
-import QRScanner from "./pages/GetScanner";
-import AttendencePage from "./pages/attendence_Page/AttendencePage";
-import EventAttendanceDetails from "./pages/attendence_Page/EventAttendanceDetails";
-import SettingsPage from "./pages/SettingsPage";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
-import AdminShell from "./layouts/AdminShell";
+import EventRegisterPage from "./pages/EventRegisterPage";
+import InvestorPortalPage from "./pages/InvestorPortalPage";
+
+const Overview = lazy(() => import("./Body/Overview"));
+const InvestorsTable = lazy(() => import("./components/InvestorsTable"));
+const CreateEventPage = lazy(() => import("./pages/CreateEventPage"));
+const RecentRegistrationsContainer = lazy(
+  () => import("./components/ResentRegistration/RecentRegistrationsContainer")
+);
+const EventCardDashbordDetils = lazy(
+  () => import("./components/running_eventCard/EventCardDashbordDetils")
+);
+const QRScanner = lazy(() => import("./pages/GetScanner"));
+const AttendencePage = lazy(() => import("./pages/attendence_Page/AttendencePage"));
+const PaymentsPage = lazy(() => import("./pages/payments/PaymentsPage"));
+const EventAttendanceDetails = lazy(
+  () => import("./pages/attendence_Page/EventAttendanceDetails")
+);
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const AuditLogPage = lazy(() => import("./pages/platform/AuditLogPage"));
+const WebhooksPage = lazy(() => import("./pages/platform/WebhooksPage"));
+const FinanceReconciliationPage = lazy(
+  () => import("./pages/platform/FinanceReconciliationPage")
+);
+
+const ADMIN_ROLES = ["admin"];
+const STAFF_ROLES = ["admin", "scanner", "finance"];
+const SCANNER_ROLES = ["admin", "scanner"];
+const FINANCE_ROLES = ["admin", "finance"];
+
+function PageLoader() {
+  return (
+    <div className="min-h-[40vh] flex items-center justify-center text-app-muted">
+      Loading…
+    </div>
+  );
+}
+
+function SuspensePage({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
+}
 
 const token = localStorage.getItem("accessToken");
-
-if (token) {
-  setAccessToken(token);
-}
+if (token) setAccessToken(token);
 
 function App() {
   return (
@@ -29,11 +59,24 @@ function App() {
       <Route path="/signup" element={<SignupComponent />} />
 
       <Route
+        path="/event/:id"
+        element={
+          <PublicShell>
+            <EventRegisterPage />
+          </PublicShell>
+        }
+      />
+
+      <Route path="/portal/:eventId" element={<InvestorPortalPage />} />
+
+      <Route
         path="/"
         element={
-          <ProtectedRoute role="admin">
+          <ProtectedRoute roles={STAFF_ROLES}>
             <AdminShell>
-              <Overview />
+              <SuspensePage>
+                <Overview />
+              </SuspensePage>
             </AdminShell>
           </ProtectedRoute>
         }
@@ -42,9 +85,11 @@ function App() {
       <Route
         path="/user-management"
         element={
-          <ProtectedRoute role="admin">
+          <ProtectedRoute roles={ADMIN_ROLES}>
             <AdminShell>
-              <InvestorsTable />
+              <SuspensePage>
+                <InvestorsTable />
+              </SuspensePage>
             </AdminShell>
           </ProtectedRoute>
         }
@@ -53,9 +98,11 @@ function App() {
       <Route
         path="/event"
         element={
-          <ProtectedRoute role="admin">
+          <ProtectedRoute roles={ADMIN_ROLES}>
             <AdminShell>
-              <CreateEventPage />
+              <SuspensePage>
+                <CreateEventPage />
+              </SuspensePage>
             </AdminShell>
           </ProtectedRoute>
         }
@@ -64,9 +111,11 @@ function App() {
       <Route
         path="/allregistrations"
         element={
-          <ProtectedRoute role="admin">
+          <ProtectedRoute roles={STAFF_ROLES}>
             <AdminShell>
-              <RecentRegistrationsContainer mode="full" />
+              <SuspensePage>
+                <RecentRegistrationsContainer mode="full" />
+              </SuspensePage>
             </AdminShell>
           </ProtectedRoute>
         }
@@ -75,20 +124,11 @@ function App() {
       <Route
         path="/runningevent/:id"
         element={
-          <ProtectedRoute role="admin">
+          <ProtectedRoute roles={STAFF_ROLES}>
             <AdminShell>
-              <EventCardDashbordDetils />
-            </AdminShell>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/event/:id"
-        element={
-          <ProtectedRoute role="admin">
-            <AdminShell>
-              <EventRegisterPage />
+              <SuspensePage>
+                <EventCardDashbordDetils />
+              </SuspensePage>
             </AdminShell>
           </ProtectedRoute>
         }
@@ -97,9 +137,11 @@ function App() {
       <Route
         path="/gate-scanner"
         element={
-          <ProtectedRoute role="admin">
+          <ProtectedRoute roles={SCANNER_ROLES}>
             <AdminShell>
-              <QRScanner />
+              <SuspensePage>
+                <QRScanner />
+              </SuspensePage>
             </AdminShell>
           </ProtectedRoute>
         }
@@ -108,9 +150,37 @@ function App() {
       <Route
         path="/attendance-logs"
         element={
-          <ProtectedRoute role="admin">
+          <ProtectedRoute roles={SCANNER_ROLES}>
             <AdminShell>
-              <AttendencePage />
+              <SuspensePage>
+                <AttendencePage />
+              </SuspensePage>
+            </AdminShell>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/payments"
+        element={
+          <ProtectedRoute roles={FINANCE_ROLES}>
+            <AdminShell>
+              <SuspensePage>
+                <PaymentsPage />
+              </SuspensePage>
+            </AdminShell>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/finance/reconciliation"
+        element={
+          <ProtectedRoute roles={FINANCE_ROLES}>
+            <AdminShell>
+              <SuspensePage>
+                <FinanceReconciliationPage />
+              </SuspensePage>
             </AdminShell>
           </ProtectedRoute>
         }
@@ -119,9 +189,11 @@ function App() {
       <Route
         path="/event-attendance/:id"
         element={
-          <ProtectedRoute role="admin">
+          <ProtectedRoute roles={SCANNER_ROLES}>
             <AdminShell>
-              <EventAttendanceDetails />
+              <SuspensePage>
+                <EventAttendanceDetails />
+              </SuspensePage>
             </AdminShell>
           </ProtectedRoute>
         }
@@ -130,15 +202,44 @@ function App() {
       <Route
         path="/settings"
         element={
-          <ProtectedRoute role="admin">
+          <ProtectedRoute roles={ADMIN_ROLES}>
             <AdminShell>
-              <SettingsPage />
+              <SuspensePage>
+                <SettingsPage />
+              </SuspensePage>
+            </AdminShell>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/platform/audit-log"
+        element={
+          <ProtectedRoute roles={ADMIN_ROLES}>
+            <AdminShell>
+              <SuspensePage>
+                <AuditLogPage />
+              </SuspensePage>
+            </AdminShell>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/platform/webhooks"
+        element={
+          <ProtectedRoute roles={ADMIN_ROLES}>
+            <AdminShell>
+              <SuspensePage>
+                <WebhooksPage />
+              </SuspensePage>
             </AdminShell>
           </ProtectedRoute>
         }
       />
 
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

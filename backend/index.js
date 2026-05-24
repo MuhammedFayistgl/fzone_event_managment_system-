@@ -2,17 +2,25 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 import express from "express";
+import http from "http";
+import path from "path";
+import { fileURLToPath } from "url";
 import logger from "morgan";
 import cookieParser from "cookie-parser";
 import indexRouter from "./router/indexRouter.js";
 import adminRouter from "./router/adminRouter.js";
 import userRouter from "./router/userRouter.js";
+import { razorpayWebhook } from "./controllers/paymentController.js";
 import { ConnectionDB } from "./server/server.js";
 import cors from "cors";
 import { startPaymentCleanupJob } from "./utils/crone.js";
 import authMiddleware from "./middleware/authMiddleware.js";
 import { requireRole } from "./middleware/roleMiddleware.js";
 import { closeRegistration } from "./controllers/registrationController.js";
+import { ensureTicketBgDir } from "./utils/ticketBackground.js";
+import { initLiveHub } from "./live/liveHub.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
@@ -46,6 +54,11 @@ const legacyCloseProtect = adminAuthEnabled()
 
 // ================= MIDDLEWARE =================
 app.use(logger("dev"));
+app.post(
+  "/user/razorpay-webhook",
+  express.raw({ type: "application/json" }),
+  razorpayWebhook
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -66,6 +79,9 @@ app.use(
   })
 );
 
+// Static uploads (ticket backgrounds)
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 // ================= ROUTES =================
 app.use("/", indexRouter);
 app.use("/admin", adminRouter);
@@ -80,16 +96,21 @@ app.post(
 
 // ================= SERVER START =================
 ConnectionDB()
-  .then(() => {
+  .then(async () => {
     console.log("DB connected ✅");
+    await ensureTicketBgDir();
     startPaymentCleanupJob();
 
     const port = process.env.PORT || 8000;
-    app.listen(port, "0.0.0.0", () => {
+    const httpServer = http.createServer(app);
+    initLiveHub(httpServer, { corsAllowList, isAllowedDevOrigin });
+
+    httpServer.listen(port, "0.0.0.0", () => {
       console.log(`Node server running on port ${port}`);
       if (isDev) {
         console.log("CORS dev: localhost + 192.168.x.x origins allowed");
       }
+      console.log("Live sync: Socket.io enabled");
     });
   })
   .catch((err) => {

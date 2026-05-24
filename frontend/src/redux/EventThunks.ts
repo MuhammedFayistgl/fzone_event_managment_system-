@@ -99,6 +99,7 @@ export const updateEvent = createAsyncThunk(
 type CreateOrderPayload = {
   eventId: string;
   phone: string;
+  guestCount?: number;
 };
 
 export const createPaymentOrder = createAsyncThunk(
@@ -108,9 +109,9 @@ export const createPaymentOrder = createAsyncThunk(
       const res = await API.post("/user/createPayment", data);
       return res.data;
     } catch (err: any) {
-      return rejectWithValue(
-        err?.response?.data?.message || "Payment order failed"
-      );
+      const data = err?.response?.data;
+      if (data) return rejectWithValue(data);
+      return rejectWithValue({ message: "Payment order failed" });
     }
   }
 );
@@ -151,6 +152,56 @@ export const checkInvestorPaymentStatus = createAsyncThunk(
   }
 );
 
+export const uploadTicketBackground = createAsyncThunk(
+  "event/uploadTicketBackground",
+  async (
+    { eventId, file, textTheme }: { eventId: string; file: File; textTheme?: string },
+    { rejectWithValue }
+  ) => {
+    try {
+      const formData = new FormData();
+      formData.append("background", file);
+      if (textTheme) formData.append("textTheme", textTheme);
+      const res = await API.post(`/admin/events/${eventId}/ticket-background`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      return res.data;
+    } catch (err: any) {
+      return rejectWithValue(err?.response?.data?.message || "Upload failed");
+    }
+  }
+);
+
+export const deleteTicketBackground = createAsyncThunk(
+  "event/deleteTicketBackground",
+  async (eventId: string, { rejectWithValue }) => {
+    try {
+      const res = await API.delete(`/admin/events/${eventId}/ticket-background`);
+      return res.data;
+    } catch (err: any) {
+      return rejectWithValue(err?.response?.data?.message || "Delete failed");
+    }
+  }
+);
+
+export const updateTicketDesignMode = createAsyncThunk(
+  "event/updateTicketDesignMode",
+  async (
+    { eventId, mode, textTheme }: { eventId: string; mode: string; textTheme?: string },
+    { rejectWithValue }
+  ) => {
+    try {
+      const res = await API.patch(`/admin/events/${eventId}/ticket-design`, {
+        mode,
+        textTheme,
+      });
+      return res.data;
+    } catch (err: any) {
+      return rejectWithValue(err?.response?.data?.message || "Update failed");
+    }
+  }
+);
+
 export const closeEventRegistration = createAsyncThunk(
   "event/closeRegistration",
   async (id: string, { rejectWithValue }) => {
@@ -177,7 +228,38 @@ export const checkRegistrationStatusAPI = async (data: {
 
 
 
-// 🔹 CHECK REGISTRATION
+export const blockRegistrationParticipant = createAsyncThunk(
+  "admin/blockRegistrationParticipant",
+  async (
+    data: {
+      registrationId: string;
+      target: "investor" | "guest";
+      guestIndex?: number;
+      blocked: boolean;
+      reason?: string;
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const res = await API.patch(
+        `/admin/registrations/${data.registrationId}/block`,
+        {
+          target: data.target,
+          guestIndex: data.guestIndex,
+          blocked: data.blocked,
+          reason: data.reason,
+        }
+      );
+      return res.data;
+    } catch (err: any) {
+      return rejectWithValue(
+        err?.response?.data?.message || "Block update failed"
+      );
+    }
+  }
+);
+
+// CHECK REGISTRATION
 export const checkRegistrationStatus = createAsyncThunk(
   "eventRegister/checkRegistrationStatus",
   async (

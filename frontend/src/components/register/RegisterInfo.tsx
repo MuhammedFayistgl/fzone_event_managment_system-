@@ -1,141 +1,165 @@
-import type { FC } from 'react';
-import { Tag } from 'rsuite';
-import type { EventResponseType, EventDay } from '../../Types/event';
+import type { FC } from "react";
+import { useState } from "react";
+import {
+  CalendarDays,
+  MapPin,
+  Globe,
+  Users,
+  Wallet,
+  ChevronDown,
+} from "lucide-react";
+import type { EventResponseType, EventDay } from "../../Types/event";
+import { formatDayDate, formatDayTime, formatRegWindow } from "../../utils/eventFormat";
+import {
+  formatEventPricingLabel,
+  getEventPricingTier,
+  normalizeEventPricing,
+} from "../../utils/pricing";
 
 interface RegisterInfoProps {
-    event: EventResponseType;
+  event: EventResponseType;
 }
 
-const RegisterInfo: FC<RegisterInfoProps> = ({ event } ) => {
-    // ================= HOOKS =================
+const RegisterInfo: FC<RegisterInfoProps> = ({ event }) => {
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const days = event?.eventDays ?? [];
+  const firstDay = days[0];
+  const desc = event?.description?.trim() ?? "";
+  const showDescToggle = desc.length > 120;
+  const pricingTier = getEventPricingTier(event);
+  const normalized = normalizeEventPricing(event);
+  const showGuestFeeHint =
+    normalized.allowGuests &&
+    normalized.guestPaymentEnabled &&
+    (normalized.guestPrice ?? 0) > 0;
 
+  const firstSession =
+    firstDay &&
+    `${formatDayDate(firstDay.date)} · ${formatDayTime(firstDay.startTime)} – ${formatDayTime(firstDay.endTime)}`;
 
-    return (
-        <>
-            <div className="app-card overflow-hidden">
-                <div className="bg-gradient-to-r from-indigo-500/90 to-blue-600/90 text-app-text p-6 space-y-3">
+  return (
+    <article className="event-register-hero pro-animate-in">
+      <div className="event-register-hero__glow" aria-hidden />
 
-                    <div className="flex justify-between items-start gap-3">
-                        <h1 className="text-2xl md:text-3xl font-bold leading-snug">
-                            {event?.title}
-                        </h1>
+      <header className="event-register-hero__head">
+        <div className="event-register-hero__head-main min-w-0">
+          <p className="event-register-hero__eyebrow">Event registration</p>
+          <h1 className="event-register-hero__title">{event?.title}</h1>
+        </div>
+        <div className="text-right">
+          <div
+            className={`event-register-hero__price event-register-hero__price--${pricingTier}`}
+          >
+            <Wallet size={14} aria-hidden />
+            <span>{formatEventPricingLabel(event)}</span>
+          </div>
+          {showGuestFeeHint && (
+            <p className="event-register-hero__price-hint">
+              Guest fees apply when you add companions
+              {normalized.freeGuestCount
+                ? ` (first ${normalized.freeGuestCount} free)`
+                : ""}
+            </p>
+          )}
+        </div>
+      </header>
 
-                        <Tag color={event?.isPaid ? "red" : "green"} className="!px-3 !py-1">
-                            {event?.isPaid ? `₹ ${event?.price}` : "FREE"}
-                        </Tag>
-                    </div>
+      {desc && (
+        <div className="event-register-hero__desc-wrap">
+          <p
+            className={`event-register-hero__desc${
+              !descExpanded && showDescToggle ? " event-register-hero__desc--clamp" : ""
+            }`}
+          >
+            {desc}
+          </p>
+          {showDescToggle && (
+            <button
+              type="button"
+              className="event-register-hero__desc-toggle"
+              onClick={() => setDescExpanded((v) => !v)}
+            >
+              {descExpanded ? "Show less" : "Show more"}
+            </button>
+          )}
+        </div>
+      )}
 
-                    <p className="text-white/90 text-sm leading-relaxed">
-                        {event?.description}
-                    </p>
+      <div className="event-register-hero__facts">
+        <span className="event-register-hero__fact">
+          {event?.locationType === "online" ? <Globe size={12} /> : <MapPin size={12} />}
+          {event?.locationType === "online" ? "Online" : "In person"}
+        </span>
+        {event?.locationType === "offline" && event?.location && (
+          <span className="event-register-hero__fact event-register-hero__fact--muted" title={event.location}>
+            {event.location}
+          </span>
+        )}
+        <span className="event-register-hero__fact">
+          <CalendarDays size={12} />
+          {days.length} day{days.length === 1 ? "" : "s"}
+        </span>
+        {firstSession && (
+          <span className="event-register-hero__fact event-register-hero__fact--accent" title={firstSession}>
+            {firstSession}
+          </span>
+        )}
+        <span className="event-register-hero__fact">
+          Reg: {formatRegWindow(event.registrationStart, event.registrationDeadline)}
+        </span>
+        <span className="event-register-hero__fact">
+          {event.maxParticipants ? `${event.maxParticipants} seats` : "Unlimited"}
+        </span>
+        <span className="event-register-hero__fact">
+          {event.isRefundable ? "Refundable" : "Non-refundable"}
+        </span>
+        <span
+          className={`event-register-hero__fact${
+            event?.allowGuests ? " event-register-hero__fact--accent" : ""
+          }`}
+        >
+          <Users size={12} />
+          {event?.allowGuests ? `Guests max ${event?.maxPerUser ?? 0}` : "No guests"}
+        </span>
+      </div>
 
-                    {/* QUICK BADGES */}
-                    <div className="flex flex-wrap gap-2 text-xs">
+      {days.length > 0 && (
+        <div className="event-register-hero__schedule">
+          <button
+            type="button"
+            className="event-register-hero__schedule-toggle"
+            onClick={() => setScheduleOpen((o) => !o)}
+            aria-expanded={scheduleOpen}
+          >
+            <CalendarDays size={14} />
+            <span>Schedule</span>
+            <span className="event-register-hero__schedule-count">{days.length}</span>
+            <ChevronDown
+              size={14}
+              className={`event-register-hero__chevron${scheduleOpen ? " event-register-hero__chevron--open" : ""}`}
+            />
+          </button>
 
-                        <Tag color="cyan">
-                            🌐 {event?.locationType}
-                        </Tag>
-
-                        {event?.locationType === "offline" && event?.location && (
-                            <Tag color="violet">
-                                📍 {event?.location}
-                            </Tag>
-                        )}
-
-                        <Tag color="blue">
-                            📅 {event?.eventDays?.length} Days
-                        </Tag>
-
-                        <Tag
-                            color={
-                                event?.allowGuests
-                                    ? (event?.maxPerUser ?? 0) > 0
-                                        ? "green"
-                                        : "orange"
-                                    : "red"
-                            }
-                        >
-                            {event?.allowGuests
-                                ? `👥 Guests Allowed • Max ${event?.maxPerUser ?? 0}`
-                                : "🚫 Guests Not Allowed"}
-                        </Tag>
-
-                    </div>
-                </div>
-
-                {/* ================= BODY ================= */}
-                <div className="p-6 space-y-6">
-
-                    {/* META GRID */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-
-                        <div className="app-card-muted p-4 rounded-xl">
-                            <p className="text-xs text-app-muted">Registration</p>
-                            <p className="font-semibold text-sm text-app-text">
-                                {event.registrationStart
-                                    ? new Date(event.registrationStart).toLocaleDateString()
-                                    : "N/A"}{" "}
-                                →{" "}
-                                {event.registrationDeadline
-                                    ? new Date(event.registrationDeadline).toLocaleDateString()
-                                    : "N/A"}
-                            </p>
-                        </div>
-
-                        <div className="app-card-muted p-4 rounded-xl">
-                            <p className="text-xs text-app-muted">Capacity</p>
-                            <p className="font-semibold text-sm text-app-text">
-                                {event.maxParticipants || "Unlimited"}
-                            </p>
-                        </div>
-
-                        <div className="app-card-muted p-4 rounded-xl">
-                            <p className="text-xs text-app-muted">Refund</p>
-                            <p className="font-semibold text-sm text-app-text">
-                                {event.isRefundable ? "Allowed" : "Not Allowed"}
-                            </p>
-                        </div>
-
-                        <div className="app-card-muted p-4 rounded-xl">
-                            <p className="text-xs text-app-muted">Mode</p>
-                            <p className="font-semibold text-sm text-app-text">
-                                {event.locationType}
-                            </p>
-                        </div>
-
-                    </div>
-
-                    {/* ================= SCHEDULE ================= */}
-                    <div>
-                        <h2 className="font-bold text-app-text mb-3">📅 Schedule Timeline</h2>
-                        <div className="space-y-3 border-l-2 border-app-accent/30 pl-4">
-
-                            {event.eventDays?.map((d: EventDay, i: number) => (
-                                <div key={i} className="relative">
-
-                                    <div className="absolute -left-[9px] top-2 w-3 h-3 bg-blue-500 rounded-full"></div>
-
-                                    <div className="app-card-muted p-3 rounded-xl">
-                                        <p className="font-semibold text-sm text-app-text">
-                                            {d.date ? new Date(d.date).toDateString() : "N/A"}
-                                        </p>
-
-                                        <p className="text-xs text-app-muted">
-                                            ⏰ {d.startTime ? new Date(d.startTime).toLocaleTimeString() : "N/A"} -{" "}
-                                            {d.endTime ? new Date(d.endTime).toLocaleTimeString() : "N/A"}
-                                        </p>
-                                    </div>
-
-                                </div>
-                            ))}
-
-                        </div>
-                    </div>
-
-                </div>
+          {scheduleOpen && (
+            <div className="event-register-hero__schedule-list">
+              {days.map((d: EventDay, i: number) => (
+                <p key={i} className="event-register-hero__schedule-row">
+                  <span className="event-register-hero__schedule-day">Day {i + 1}</span>
+                  <span className="event-register-hero__schedule-sep">·</span>
+                  <span>{formatDayDate(d.date)}</span>
+                  <span className="event-register-hero__schedule-sep">·</span>
+                  <span className="event-register-hero__schedule-time">
+                    {formatDayTime(d.startTime)} – {formatDayTime(d.endTime)}
+                  </span>
+                </p>
+              ))}
             </div>
-        </>
-    );
+          )}
+        </div>
+      )}
+    </article>
+  );
 };
 
 export default RegisterInfo;

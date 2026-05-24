@@ -1,13 +1,23 @@
 import { format } from "date-fns";
 import { Eye, Trash2 } from "lucide-react";
-import { Avatar, IconButton, Tag } from "rsuite";
+import { useMemo } from "react";
+import { Avatar, IconButton, Tag, Whisper, Tooltip } from "rsuite";
+import GenderBadge from "../common/GenderBadge";
 import {
     getRegistrationInvestorInitial,
     getRegistrationInvestorName,
 } from "../../utils/getRegistrationInvestorName";
+import {
+  paymentRequired,
+  calculateRegistrationTotal,
+  isPaymentSufficient,
+  formatCurrency,
+  type EventPricingFields,
+} from "../../utils/pricing";
 
 export type RegistrationTableColumn =
     | "user"
+    | "gender"
     | "category"
     | "guests"
     | "pass"
@@ -24,10 +34,14 @@ type ColumnMetaBase = {
     align?: "left" | "right" | "center";
 };
 
-type ColumnMeta = ColumnMetaBase & { widthPx: number };
+type ColumnMeta = ColumnMetaBase & {
+  key: RegistrationTableColumn;
+  widthPx: number;
+};
 
 const COLUMN_DEFS: Record<RegistrationTableColumn, ColumnMetaBase> = {
     user: { label: "User" },
+    gender: { label: "Gender", hideMobile: true },
     category: { label: "Category", hideMobile: true },
     guests: { label: "Guests", hideMobile: true },
     pass: { label: "Pass" },
@@ -42,25 +56,36 @@ const COLUMN_DEFS: Record<RegistrationTableColumn, ColumnMetaBase> = {
 /** Fixed px widths per layout — header & body stay aligned */
 const LAYOUT_WIDTHS: Record<string, Partial<Record<RegistrationTableColumn, number>>> = {
     eventDetail: {
-        user: 196,
-        category: 112,
+        user: 200,
+        gender: 88,
+        category: 108,
         pass: 88,
-        status: 168,
-        time: 108,
+        status: 160,
+        time: 104,
         actions: 88,
     },
     attendancePanel: {
-        user: 196,
+        user: 200,
+        gender: 80,
         guests: 72,
         payment: 88,
-        checkin: 140,
-        registered: 150,
-        actions: 88,
+        checkin: 132,
+        registered: 168,
+        actions: 80,
+    },
+    attendancePanelCompact: {
+        user: 188,
+        gender: 72,
+        guests: 64,
+        payment: 80,
+        checkin: 118,
+        registered: 162,
     },
 };
 
 const DEFAULT_WIDTHS: Record<RegistrationTableColumn, number> = {
     user: 180,
+    gender: 84,
     category: 110,
     guests: 80,
     pass: 90,
@@ -72,16 +97,20 @@ const DEFAULT_WIDTHS: Record<RegistrationTableColumn, number> = {
     actions: 88,
 };
 
+export const REGISTRATION_TABLE_LAYOUTS = {
+    eventDetail: ["user", "gender", "category", "pass", "status", "time", "actions"] as RegistrationTableColumn[],
+    attendancePanel: ["user", "gender", "guests", "payment", "checkin", "registered", "actions"] as RegistrationTableColumn[],
+    attendancePanelCompact: ["user", "gender", "guests", "payment", "checkin", "registered"] as RegistrationTableColumn[],
+} as const;
+
 function resolveLayoutKey(columns: RegistrationTableColumn[]): string {
-    const eventCols = REGISTRATION_TABLE_LAYOUTS.eventDetail.join(",");
-    const attendanceCols = REGISTRATION_TABLE_LAYOUTS.attendancePanel.join(",");
+    const layouts = Object.entries(REGISTRATION_TABLE_LAYOUTS) as [string, RegistrationTableColumn[]][];
     const current = columns.join(",");
-    if (current === eventCols) return "eventDetail";
-    if (current === attendanceCols) return "attendancePanel";
-    return "custom";
+    const match = layouts.find(([, cols]) => cols.join(",") === current);
+    return match?.[0] ?? "custom";
 }
 
-function buildColumnMeta(columns: RegistrationTableColumn[]) {
+function buildColumnMeta(columns: RegistrationTableColumn[]): ColumnMeta[] {
     const layoutKey = resolveLayoutKey(columns);
     const layoutWidths = LAYOUT_WIDTHS[layoutKey] ?? {};
 
@@ -96,17 +125,15 @@ function tableMinWidth(columnMeta: ReturnType<typeof buildColumnMeta>) {
     return columnMeta.reduce((sum, col) => sum + col.widthPx, 0);
 }
 
-export const REGISTRATION_TABLE_LAYOUTS = {
-    eventDetail: ["user", "category", "pass", "status", "time", "actions"] as RegistrationTableColumn[],
-    attendancePanel: ["user", "guests", "payment", "checkin", "registered", "actions"] as RegistrationTableColumn[],
-} as const;
-
 type RegistrationDataTableProps = {
     rows: any[];
     columns: RegistrationTableColumn[];
-    event?: { isPaid?: boolean };
+    event?: EventPricingFields;
     emptyMessage?: string;
     showDeleteAction?: boolean;
+    hideActions?: boolean;
+    dateFormat?: "full" | "compact";
+    minWidth?: number;
     className?: string;
 };
 
@@ -128,21 +155,78 @@ const tdClass = (col: ColumnMetaBase) =>
         .filter(Boolean)
         .join(" ");
 
-const cellWidthStyle = (widthPx: number) =>
-    ({ width: widthPx, minWidth: widthPx, maxWidth: widthPx }) as const;
+const columnWidthPercent = (widthPx: number, total: number) =>
+    `${((widthPx / total) * 100).toFixed(4)}%`;
 
-function PassBadge({ item, isPaid }: { item: any; isPaid?: boolean }) {
-    const paid = item.payment?.status === "success";
-    const className = paid
-        ? "reg-badge reg-badge--paid"
-        : isPaid
-          ? "reg-badge reg-badge--pending"
-          : "reg-badge reg-badge--free";
+function formatPhone(value: unknown) {
+    return String(value ?? "").replace(/\s/g, "\u00A0");
+}
+
+function PassBadge({
+  item,
+  event,
+}: {
+  item: any;
+  event?: EventPricingFields;
+}) {
+  const guestCount = item.participants?.length ?? item.participantsCount ?? 0;
+  const requiresPayment = paymentRequired(event, guestCount);
+  const paidTotal =
+    Number(item.payment?.paidTotal ?? 0) ||
+    (item.payment?.status === "success" ? Number(item.payment?.amount ?? 0) : 0);
+  const isSufficient = isPaymentSufficient(event, guestCount, paidTotal);
+
+  let className = "reg-badge reg-badge--free";
+  let label = "FREE";
+
+  if (requiresPayment) {
+    if (isSufficient) {
+      className = "reg-badge reg-badge--paid";
+      label = "PAID";
+    } else if (paidTotal > 0) {
+      className = "reg-badge reg-badge--partial";
+      label = "PARTIAL";
+    } else {
+      className = "reg-badge reg-badge--pending";
+      label = "PENDING";
+    }
+  }
+
+  return <span className={className}>{label}</span>;
+}
+
+function PaymentAmountBadge({
+  item,
+  event,
+}: {
+  item: any;
+  event?: EventPricingFields;
+}) {
+  const guestCount = item.participants?.length ?? item.participantsCount ?? 0;
+  const { total } = calculateRegistrationTotal(event, guestCount);
+  const paidTotal =
+    Number(item.payment?.paidTotal ?? 0) ||
+    (item.payment?.status === "success" ? Number(item.payment?.amount ?? 0) : 0);
+  const requiresPayment = total > 0;
+  const amountDue = Math.max(0, total - paidTotal);
+
+  if (!requiresPayment) {
+    return <span className="reg-badge reg-badge--free text-xs">FREE</span>;
+  }
+
+  if (paidTotal >= total) {
     return (
-        <span className={className}>
-            {isPaid ? (paid ? "PAID" : "PENDING") : "FREE"}
-        </span>
+      <span className="reg-badge reg-badge--paid text-xs whitespace-nowrap">
+        PAID {formatCurrency(paidTotal)}
+      </span>
     );
+  }
+
+  return (
+    <span className="reg-badge reg-badge--partial text-xs whitespace-nowrap">
+      DUE {formatCurrency(amountDue)}
+    </span>
+  );
 }
 
 function CheckinStatus({ item, variant }: { item: any; variant: "hall" | "compact" }) {
@@ -174,7 +258,8 @@ function renderCell(
     key: RegistrationTableColumn,
     item: any,
     event: RegistrationDataTableProps["event"],
-    showDeleteAction?: boolean
+    showDeleteAction?: boolean,
+    dateFormat: RegistrationDataTableProps["dateFormat"] = "full"
 ) {
     switch (key) {
         case "user":
@@ -187,21 +272,40 @@ function renderCell(
                         <p className="text-sm font-semibold text-app-text truncate group-hover:text-app-accent transition">
                             {getRegistrationInvestorName(item)}
                         </p>
-                        <p className="text-xs text-app-muted truncate">{item.phone}</p>
+                        <p className="text-xs text-app-muted truncate whitespace-nowrap">{formatPhone(item.phone)}</p>
                     </div>
                 </div>
             );
         case "category":
             return <Tag className="reg-tag reg-tag--category">General</Tag>;
-        case "guests":
+        case "gender":
+            return <GenderBadge gender={item.investor?.Gender} size="md" />;
+        case "guests": {
+            const list = item.participants || [];
+            const count = item.participantsCount ?? list.length;
+            const tip =
+                list.length > 0
+                    ? list
+                          .map((p: any) => {
+                            const status = p.isCheckedIn ? " ✓" : " —";
+                            return `${p.name} (${p.gender || "Other"})${status}`;
+                          })
+                          .join("\n")
+                    : "No guests";
             return (
-                <Tag className="reg-tag reg-tag--guests">
-                    {item.participantsCount ?? item.participants?.length ?? 0}
-                </Tag>
+                <Whisper
+                    placement="top"
+                    trigger="hover"
+                    speaker={<Tooltip>{tip}</Tooltip>}
+                >
+                    <Tag className="reg-tag reg-tag--guests cursor-help">{count}</Tag>
+                </Whisper>
             );
+        }
         case "pass":
+            return <PassBadge item={item} event={event} />;
         case "payment":
-            return <PassBadge item={item} isPaid={event?.isPaid} />;
+            return <PaymentAmountBadge item={item} event={event} />;
         case "status":
             return <CheckinStatus item={item} variant="hall" />;
         case "checkin":
@@ -215,7 +319,12 @@ function renderCell(
         case "registered":
             return (
                 <span className="reg-time-cell">
-                    {item.createdAt ? format(new Date(item.createdAt), "dd MMM yyyy, hh:mm a") : "—"}
+                    {item.createdAt
+                        ? format(
+                              new Date(item.createdAt),
+                              dateFormat === "compact" ? "dd MMM yyyy · hh:mm a" : "dd MMM yyyy, hh:mm a"
+                          )
+                        : "—"}
                 </span>
             );
         case "actions":
@@ -238,23 +347,31 @@ export default function RegistrationDataTable({
     event,
     emptyMessage = "No registrations found",
     showDeleteAction = true,
+    hideActions = false,
+    dateFormat = "full",
+    minWidth,
     className = "",
 }: RegistrationDataTableProps) {
-    const columnMeta = buildColumnMeta(columns);
-    const minTableWidth = tableMinWidth(columnMeta);
+    const visibleColumns = useMemo(
+        () => (hideActions ? columns.filter((col) => col !== "actions") : columns),
+        [columns, hideActions]
+    );
+    const columnMeta = buildColumnMeta(visibleColumns);
+    const computedMinWidth = tableMinWidth(columnMeta);
+    const tableMinWidthPx = Math.max(computedMinWidth, minWidth ?? 0);
 
     return (
         <div className={`registration-table-frame ${className}`.trim()}>
             <div className="registration-table-scroll">
                 <table
-                    className="registration-table w-full border-collapse"
-                    style={{ minWidth: minTableWidth, tableLayout: "fixed" }}
+                    className="registration-table border-collapse"
+                    style={{ width: "100%", minWidth: tableMinWidthPx, tableLayout: "fixed" }}
                 >
                     <colgroup>
                         {columnMeta.map((col) => (
                             <col
                                 key={col.key}
-                                style={cellWidthStyle(col.widthPx)}
+                                style={{ width: columnWidthPercent(col.widthPx, computedMinWidth) }}
                                 className={col.hideMobile ? "hidden md:table-column" : undefined}
                             />
                         ))}
@@ -265,7 +382,6 @@ export default function RegistrationDataTable({
                                 <th
                                     key={col.key}
                                     className={`pro-table-head-cell ${thClass(col)}`}
-                                    style={cellWidthStyle(col.widthPx)}
                                 >
                                     {col.label}
                                 </th>
@@ -275,7 +391,7 @@ export default function RegistrationDataTable({
                     <tbody>
                         {rows.length === 0 ? (
                             <tr>
-                                <td colSpan={columns.length} className="registration-table-empty px-4 py-10 text-center text-app-muted">
+                                <td colSpan={visibleColumns.length} className="registration-table-empty px-4 py-10 text-center text-app-muted">
                                     {emptyMessage}
                                 </td>
                             </tr>
@@ -288,10 +404,9 @@ export default function RegistrationDataTable({
                                     {columnMeta.map((col) => (
                                         <td
                                             key={col.key}
-                                            className={`${tdClass(col)}`}
-                                            style={cellWidthStyle(col.widthPx)}
+                                            className={tdClass(col)}
                                         >
-                                            {renderCell(col.key, item, event, showDeleteAction)}
+                                            {renderCell(col.key, item, event, showDeleteAction, dateFormat)}
                                         </td>
                                     ))}
                                 </tr>

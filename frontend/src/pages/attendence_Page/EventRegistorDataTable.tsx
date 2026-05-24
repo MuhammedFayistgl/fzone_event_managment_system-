@@ -89,28 +89,19 @@
 
 
 import { motion } from "framer-motion";
-import {
-    UserCheck,
-    Search,
-    Eye,
-    Trash2,
-    ArrowLeft,
-    CalendarDays,
-    Phone,
-} from "lucide-react";
-
-import React, { useEffect, useMemo, useState } from "react";
+import { Search, ArrowLeft } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router";
-import { Input, Avatar, IconButton, Tag } from "rsuite";
+import { Input, InputGroup } from "rsuite";
 import clsx from "clsx";
-import { format } from "date-fns";
 
 import { useAppSelector } from "../../hooks/hooks";
 import { eventRegistrationDetils_Get_ById } from "../../redux/Thunks/EventRegisrationDetilsThunk";
 import RegistrationDataTable, {
     REGISTRATION_TABLE_LAYOUTS,
 } from "../../components/registration/RegistrationDataTable";
+import { formatEventPricingLabel, formatCurrency } from "../../utils/pricing";
 import { getRegistrationInvestorName } from "../../utils/getRegistrationInvestorName";
 
 function EventRegistorDataTable({ selectID }: any) {
@@ -141,16 +132,9 @@ function EventRegistorDataTable({ selectID }: any) {
     }, [dispatch, selectID]);
 
     // ================= REGISTRATION =================
-    const registration = registrationData?.registration || {};
-
-    const investor = registrationData?.investor || {};
-
     const event = registrationData?.event || {};
 
-    const payment = registrationData?.payment || {};
-
-
-    console.log(registrationData, 'registrationData')
+    const statistics = registrationData?.statistics || {};
 
     // ================= PARTICIPANTS =================
     const attendees = useMemo(() => {
@@ -162,7 +146,10 @@ function EventRegistorDataTable({ selectID }: any) {
             }) || []
         );
     }, [registrationData?.registrations, search]);
-    console.log('attendees', attendees)
+
+    const pricingLabel = formatEventPricingLabel(event);
+    const totalRevenue = Number(statistics?.totalRevenue ?? 0);
+
     return (
         <div className="app-page text-app-text">
             {/* ================= HEADER ================= */}
@@ -213,7 +200,7 @@ function EventRegistorDataTable({ selectID }: any) {
                         </p>
 
                         <h2 className="text-2xl font-black mt-1">
-                            {registrationData?.statistics?.totalRegistrations || 0}
+                            {statistics?.totalRegistrations || 0}
                         </h2>
                     </div>
 
@@ -225,18 +212,11 @@ function EventRegistorDataTable({ selectID }: any) {
                         "
                     >
                         <p className="text-app-secondary text-xs uppercase tracking-wider">
-                            Payment
+                            Pricing
                         </p>
 
-                        <h2
-                            className={clsx(
-                                "text-lg font-bold mt-1",
-                                payment?.status === "paid"
-                                    ? "text-emerald-400"
-                                    : "text-yellow-400"
-                            )}
-                        >
-                            {payment?.status || "FREE"}
+                        <h2 className="text-sm font-bold mt-1 text-app-text">
+                            {pricingLabel}
                         </h2>
                     </div>
 
@@ -248,16 +228,16 @@ function EventRegistorDataTable({ selectID }: any) {
                         "
                     >
                         <p className="text-app-secondary text-xs uppercase tracking-wider">
-                            Created
+                            Revenue
                         </p>
 
-                        <h2 className="text-sm font-semibold mt-2 text-app-text/90">
-                            {registration?.createdAt
-                                ? format(
-                                    new Date(registration.createdAt),
-                                    "dd MMM yyyy"
-                                )
-                                : "--"}
+                        <h2
+                            className={clsx(
+                                "text-lg font-bold mt-1",
+                                totalRevenue > 0 ? "text-emerald-400" : "text-app-muted"
+                            )}
+                        >
+                            {formatCurrency(totalRevenue)}
                         </h2>
                     </div>
                 </div>
@@ -274,14 +254,17 @@ function EventRegistorDataTable({ selectID }: any) {
                     p-4
                 "
             >
-                <Input
-                    size="lg"
-                    placeholder="Search participants, phone..."
-                    value={search}
-                    onChange={(v) => setSearch(v)}
-                    prefix={<Search size={18} />}
-                    className="!bg-transparent"
-                />
+                <InputGroup inside className="!bg-transparent">
+                    <InputGroup.Addon>
+                        <Search size={18} />
+                    </InputGroup.Addon>
+                    <Input
+                        size="lg"
+                        placeholder="Search participants, phone..."
+                        value={search}
+                        onChange={(v) => setSearch(v)}
+                    />
+                </InputGroup>
             </motion.div>
 
             {/* ================= INVESTOR CARD =================
@@ -409,7 +392,6 @@ function EventRegistorDataTable({ selectID }: any) {
                                 rows={attendees}
                                 columns={[...REGISTRATION_TABLE_LAYOUTS.eventDetail]}
                                 event={event}
-                                minWidth={760}
                             />
                         </div>
                     </>
@@ -539,7 +521,7 @@ export default EventRegistorDataTable;
 //                                         !font-bold
 //                                         !border
 //                                         `,
-//                                         payment?.status === "paid"
+//                                         payment?.status === "success"
 //                                             ? `
 //                                                 !bg-green-500/20
 //                                                 !text-green-300

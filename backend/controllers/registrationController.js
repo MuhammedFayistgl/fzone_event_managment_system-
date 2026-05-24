@@ -13,10 +13,34 @@ import {
   formatRegistrationInvestor,
   repairRegistrationInvestorIds,
 } from "../utils/resolveRegistrationInvestors.js";
+import { normalizeGender } from "../utils/gender.js";
+import {
+  ensureParticipantPasses,
+  findPassByToken,
+} from "../utils/passQr.js";
+import { calculateRegistrationTotal, sumSuccessfulPayments } from "../utils/pricing.js";
+import {
+  emitCheckInUpdated,
+  emitRegistrationCreated,
+} from "../live/liveHub.js";
+import { notifyDashboardMetricsChanged } from "../utils/dashboardCache.js";
+import { getOrgSettings } from "../utils/appSettings.js";
+import WaitlistEntry from "../models/waitlistModel.js";
+import { syncAccessAfterRefund } from "../utils/paymentRefund.js";
+import { notifyUser } from "../utils/notifications.js";
 
-import QRCode from "qrcode";
-import { v4 as uuidv4 } from "uuid";
 
+
+async function assertPaymentCoversGuests(event, eventId, phoneKey, guestCount) {
+  const { total } = calculateRegistrationTotal(event, guestCount);
+  if (total <= 0) return null;
+  const successPayments = await Payment.find({ eventId, phone: phoneKey, status: "success" });
+  const paidTotal = sumSuccessfulPayments(successPayments);
+  if (paidTotal < total) {
+    return { ok: false, required: total, paid: paidTotal };
+  }
+  return { ok: true, payment: successPayments[successPayments.length - 1] };
+}
 
 export const registerEvent = async (req, res) => {
   try {
@@ -65,23 +89,8 @@ export const registerEvent = async (req, res) => {
       });
     }
 
-    // ================= 4. CHECK PAYMENT =================
+    // ================= 4. CHECK PAYMENT (after guest count known) =================
     let payment = null;
-
-    if (event.isPaid) {
-      payment = await Payment.findOne({
-        eventId,
-        phone: phoneKey,
-        status: "success",
-      });
-
-      if (!payment) {
-        return res.status(400).json({
-          success: false,
-          message: "Payment not completed",
-        });
-      }
-    }
 
     // ================= 5. CHECK EXISTING =================
     const existing = await RegEventModel.findOne({
@@ -101,6 +110,8 @@ export const registerEvent = async (req, res) => {
       });
     }
 
+    const settings = await getOrgSettings();
+
     // ================= 7. GUEST VALIDATION =================
     if (event.allowGuests) {
       if (guests.length > (event.maxPerUser ?? 0)) {
@@ -110,16 +121,17 @@ export const registerEvent = async (req, res) => {
         });
       }
 
-      const invalidGuest = guests.some(
-        (g) =>
-          !g.name ||
-          (g.phone && !/^\d{10}$/.test(g.phone))
-      );
+      const invalidGuest = guests.some((g) => {
+        if (!g.name?.trim()) return true;
+        if (!normalizeGender(g.gender)) return true;
+        if (g.phone && !/^\d{10}$/.test(String(g.phone))) return true;
+        return false;
+      });
 
       if (invalidGuest) {
         return res.status(400).json({
           success: false,
-          message: "Invalid guest details",
+          message: "Invalid guest details — name and gender required",
         });
       }
     }
@@ -127,7 +139,9 @@ export const registerEvent = async (req, res) => {
     // ================= 8. TRANSFORM GUESTS =================
     const participants = guests.map((g) => ({
       name: g.name.trim(),
-      type: g.category || "guest",
+      phone: g.phone ? String(g.phone).trim() : "",
+      type: g.category || g.relation || "guest",
+      gender: normalizeGender(g.gender) || "Other",
     }));
 
     // ================= 9. SORT FOR CONSISTENT COMPARISON =================
@@ -180,11 +194,29 @@ export const registerEvent = async (req, res) => {
         });
       }
 
+      const paymentCheck = await assertPaymentCoversGuests(
+        event,
+        eventId,
+        phoneKey,
+        finalParticipants.length
+      );
+      if (paymentCheck && !paymentCheck.ok) {
+        return res.status(400).json({
+          success: false,
+          message: "Payment not completed for current guest count",
+          requiredTotal: paymentCheck.required,
+          paidTotal: paymentCheck.paid,
+        });
+      }
+      payment = paymentCheck?.payment ?? null;
+
       const oldData = normalize(existing.participants || []);
       const newData = normalize(finalParticipants || []);
 
       // ===== SAME DATA =====
       if (oldData === newData) {
+        await ensureParticipantPasses(existing);
+
         return res.json({
           eventId,
           success: true,
@@ -193,45 +225,79 @@ export const registerEvent = async (req, res) => {
           qr: existing.qrCodeImage,
           token: existing.qrToken,
           participants: existing.participants,
-          registration: existing
+          registration: existing,
         });
       }
 
       // ===== UPDATE =====
-      const updated = await RegEventModel.findByIdAndUpdate(
-        existing._id,
-        {
-          participants: finalParticipants,
-          investorId: investor._id,
-          investorName: investor.Name,
-          investorCode: investor.Code_No,
-        },
-        { new: true }
-      );
+      existing.participants = finalParticipants;
+      existing.investorId = investor._id;
+      existing.investorName = investor.Name;
+      existing.investorCode = investor.Code_No;
+      existing.markModified("participants");
+
+      await ensureParticipantPasses(existing);
+      await existing.save();
 
       return res.json({
         eventId,
         success: true,
         message: "Registration updated successfully",
-        qr: updated.qrCodeImage,
-        token: updated.qrToken,
+        qr: existing.qrCodeImage,
+        token: existing.qrToken,
         investor,
-        participants: updated.participants,
-        registration: updated,
+        participants: existing.participants,
+        registration: existing,
       });
     }
 
-    // ================= 11. GENERATE QR =================
-    const qrToken = uuidv4();
+    if (!existing && event.maxParticipants > 0) {
+      const currentCount = await RegEventModel.countDocuments({ eventId });
+      if (currentCount >= event.maxParticipants) {
+        if (settings.waitlistEnabled) {
+          await WaitlistEntry.findOneAndUpdate(
+            { eventId, phone: phoneKey },
+            {
+              $set: {
+                investorName: investor.Name || "",
+                guestCount: participants.length,
+                status: "waiting",
+              },
+            },
+            { upsert: true, new: true }
+          );
 
-    const qrData = JSON.stringify({
-      token: qrToken,
+          return res.status(202).json({
+            success: true,
+            waitlisted: true,
+            message: "Event is full. You have been added to the waitlist.",
+          });
+        }
+
+        return res.status(409).json({
+          success: false,
+          message: "Event has reached maximum capacity",
+        });
+      }
+    }
+
+    const newRegPaymentCheck = await assertPaymentCoversGuests(
+      event,
       eventId,
-    });
+      phoneKey,
+      participants.length
+    );
+    if (newRegPaymentCheck && !newRegPaymentCheck.ok) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment not completed",
+        requiredTotal: newRegPaymentCheck.required,
+        paidTotal: newRegPaymentCheck.paid,
+      });
+    }
+    payment = newRegPaymentCheck?.payment ?? null;
 
-    const qrCodeImage = await QRCode.toDataURL(qrData);
-
-    // ================= 12. SAVE =================
+    // ================= 11. SAVE REGISTRATION + GENERATE PASSES =================
     const registration = await RegEventModel.create({
       eventId,
       investorId: investor._id,
@@ -239,22 +305,37 @@ export const registerEvent = async (req, res) => {
       investorName: investor.Name,
       investorCode: investor.Code_No,
       participants,
-
-      qrToken,
-      qrCodeImage,
       isCheckedIn: false,
       checkedInAt: null,
     });
+
+    await ensureParticipantPasses(registration);
+
+    emitRegistrationCreated({
+      eventId: String(eventId),
+      registrationId: String(registration._id),
+      phone: phoneKey,
+    });
+
+    await notifyDashboardMetricsChanged();
+
+    notifyUser({
+      phone: phoneKey,
+      email: investor?.Email || "",
+      eventTitle: event.title,
+      template: "pass_ready",
+      message: `Your registration for ${event.title} is confirmed. Your digital entry pass is ready.`,
+    }).catch(() => {});
 
     return res.json({
       eventId,
       success: true,
       message: "Registration successful",
-      qr: qrCodeImage,
-      token: qrToken,
+      qr: registration.qrCodeImage,
+      token: registration.qrToken,
       investor,
-      participants,
-      registration: registration,
+      participants: registration.participants,
+      registration,
     });
 
   } catch (err) {
@@ -320,8 +401,10 @@ export const deleteGuestFromRegistration = async (req, res) => {
       );
 
     registration.participants = updatedParticipants;
+    registration.markModified("participants");
 
     await registration.save();
+    await syncAccessAfterRefund(registration.eventId, registration.phone);
 
     return res.json({
       success: true,
@@ -468,6 +551,8 @@ export const checkRegistrationStatus = async (req, res) => {
     });
 
     if (existing) {
+      await ensureParticipantPasses(existing);
+
       return res.json({
         success: true,
         registered: true,
@@ -519,7 +604,12 @@ export const verifyQR = async (req, res) => {
 
     const registration =
       await RegEventModel
-        .findOne({ qrToken: token })
+        .findOne({
+          $or: [
+            { qrToken: token },
+            { "participants.qrToken": token },
+          ],
+        })
         .populate("investorId")
         .populate("eventId");
 
@@ -530,6 +620,15 @@ export const verifyQR = async (req, res) => {
         message: "Invalid QR Code",
       });
 
+    }
+
+    const passMatch = findPassByToken(registration, token);
+
+    if (!passMatch) {
+      return res.status(404).json({
+        success: false,
+        message: "Invalid QR Code",
+      });
     }
 
     const investorByPhone = await buildInvestorLookupByPhone([registration.phone]);
@@ -549,9 +648,52 @@ export const verifyQR = async (req, res) => {
       investorByPhone
     );
 
+    const linkedInvestor = {
+      name: resolvedInvestor?.Name || registration.investorName,
+      code: resolvedInvestor?.Code_No || registration.investorCode,
+      phone: registration.phone,
+      no: resolvedInvestor?.No,
+    };
+
+    const isInvestorPass = passMatch.passType === "investor";
+    const guestParticipant = !isInvestorPass
+      ? registration.participants[passMatch.participantIndex]
+      : null;
+
+    const alreadyCheckedIn = isInvestorPass
+      ? registration.isCheckedIn
+      : Boolean(guestParticipant?.isCheckedIn);
+
+    const isBlockedPass = isInvestorPass
+      ? Boolean(registration.isBlocked)
+      : Boolean(guestParticipant?.isBlocked);
+
+    if (isBlockedPass) {
+      return res.status(403).json({
+        success: false,
+        blocked: true,
+        message: isInvestorPass
+          ? "Investor entry is blocked for this event"
+          : "Guest entry is blocked for this event",
+        data: {
+          passType: passMatch.passType,
+          holderName: isInvestorPass
+            ? linkedInvestor.name
+            : guestParticipant?.name,
+          blockedReason: isInvestorPass
+            ? registration.blockedReason
+            : guestParticipant?.blockedReason,
+        },
+      });
+    }
+
+    const checkedInAtValue = isInvestorPass
+      ? registration.checkedInAt
+      : guestParticipant?.checkedInAt;
+
     // ================= ALREADY CHECKED IN =================
 
-    if (registration.isCheckedIn) {
+    if (alreadyCheckedIn) {
 
       return res.status(400).json({
 
@@ -563,11 +705,26 @@ export const verifyQR = async (req, res) => {
 
         data: {
 
-          checkedInAt:
-            registration.checkedInAt,
+          passType: passMatch.passType,
 
-          gateName:
-            registration.gateName,
+          holderName: isInvestorPass
+            ? linkedInvestor.name
+            : guestParticipant?.name,
+
+          guest: guestParticipant
+            ? {
+                name: guestParticipant.name,
+                type: guestParticipant.type,
+                gender: guestParticipant.gender,
+                phone: guestParticipant.phone,
+              }
+            : null,
+
+          linkedInvestor,
+
+          checkedInAt: checkedInAtValue,
+
+          gateName: registration.gateName,
 
         }
 
@@ -577,10 +734,15 @@ export const verifyQR = async (req, res) => {
 
     // ================= UPDATE CHECK-IN =================
 
-    registration.isCheckedIn = true;
+    const now = new Date();
 
-    registration.checkedInAt =
-      new Date();
+    if (isInvestorPass) {
+      registration.isCheckedIn = true;
+      registration.checkedInAt = now;
+    } else if (guestParticipant) {
+      guestParticipant.isCheckedIn = true;
+      guestParticipant.checkedInAt = now;
+    }
 
     registration.checkedInBy =
       req.user?.id || adminId || null;
@@ -593,6 +755,25 @@ export const verifyQR = async (req, res) => {
 
     await registration.save();
 
+    emitCheckInUpdated({
+      eventId: String(registration.eventId?._id || registration.eventId),
+      registrationId: String(registration._id),
+      phone: registration.phone,
+      passType: passMatch.passType,
+      participantId: guestParticipant?._id
+        ? String(guestParticipant._id)
+        : null,
+      participantIndex: !isInvestorPass ? passMatch.participantIndex : null,
+      isCheckedIn: true,
+      checkedInAt: now.toISOString(),
+      holderName: isInvestorPass
+        ? linkedInvestor.name
+        : guestParticipant?.name,
+      gateName: registration.gateName,
+    });
+
+    await notifyDashboardMetricsChanged();
+
     // ================= RESPONSE =================
 
     return res.json({
@@ -602,6 +783,23 @@ export const verifyQR = async (req, res) => {
       message: "Check-In Successful",
 
       data: {
+
+        passType: passMatch.passType,
+
+        holderName: isInvestorPass
+          ? linkedInvestor.name
+          : guestParticipant?.name,
+
+        guest: guestParticipant
+          ? {
+              name: guestParticipant.name,
+              type: guestParticipant.type,
+              gender: guestParticipant.gender,
+              phone: guestParticipant.phone,
+            }
+          : null,
+
+        linkedInvestor,
 
         registrationId:
           registration._id,
@@ -618,8 +816,7 @@ export const verifyQR = async (req, res) => {
         participants:
           registration.participants,
 
-        checkedInAt:
-          registration.checkedInAt,
+        checkedInAt: now,
 
         gateName:
           registration.gateName,

@@ -4,6 +4,7 @@ export type Guest = {
   id: string;
   name: string;
   relation: string;
+  gender: "" | "Male" | "Female" | "Other";
   phone?: string;
 };
 
@@ -36,6 +37,11 @@ export type EventFormState = {
 
   isPaid: boolean;
   price: number;
+  investorIsFree?: boolean;
+  investorPrice?: number;
+  guestPaymentEnabled?: boolean;
+  guestPrice?: number;
+  freeGuestCount?: number;
   currency: string;
 
   isRefundable: boolean;
@@ -61,8 +67,16 @@ export type EventDay = {
   endTime: string | null;
 };
 
+export type TicketDesignMode = "default" | "custom";
+export type TicketTextTheme = "dark" | "light";
 
-
+export type TicketDesign = {
+  mode: TicketDesignMode;
+  backgroundUrl?: string | null;
+  textTheme?: TicketTextTheme;
+  uploadedAt?: string | null;
+  originalFileName?: string | null;
+};
 
 export type EventResponseType = {
   _id: string;
@@ -77,6 +91,11 @@ export type EventResponseType = {
 
   isPaid: boolean;
   price: number;
+  investorIsFree?: boolean;
+  investorPrice?: number;
+  guestPaymentEnabled?: boolean;
+  guestPrice?: number;
+  freeGuestCount?: number;
 
   isRefundable: boolean;
 
@@ -87,6 +106,6 @@ export type EventResponseType = {
   createdAt: string;
   updatedAt: string;
   eventDays: EventDay[];
-
+  ticketDesign?: TicketDesign;
 
 };

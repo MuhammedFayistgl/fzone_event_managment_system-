@@ -4,10 +4,12 @@ import { jwtDecode } from "jwt-decode";
 type ProtectedRouteProps = {
   children: React.ReactNode;
   role?: string;
+  roles?: string[];
 };
 
-const ProtectedRoute = ({ children, role = "admin" }: ProtectedRouteProps) => {
+const ProtectedRoute = ({ children, role = "admin", roles }: ProtectedRouteProps) => {
   const token = localStorage.getItem("accessToken");
+  const allowedRoles = roles?.length ? roles : [role];
 
   if (!token) {
     return <Navigate to="/login" replace />;
@@ -21,7 +23,8 @@ const ProtectedRoute = ({ children, role = "admin" }: ProtectedRouteProps) => {
       return <Navigate to="/login" replace />;
     }
 
-    if (role && decoded.role && decoded.role !== role) {
+    const userRole = decoded.role || "admin";
+    if (!allowedRoles.includes(userRole)) {
       return <Navigate to="/unauthorized" replace />;
     }
 

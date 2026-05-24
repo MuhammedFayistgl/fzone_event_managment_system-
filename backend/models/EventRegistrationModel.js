@@ -38,8 +38,20 @@ const registrationSchema = new mongoose.Schema(
     participants: [
       {
         name: { type: String, required: true },
-        phone: { type: String }, // ✅ add this
+        phone: { type: String },
         type: { type: String, default: "guest" },
+        gender: {
+          type: String,
+          enum: ["Male", "Female", "Other"],
+          default: "Other",
+        },
+        qrToken: { type: String },
+        qrCodeImage: String,
+        isCheckedIn: { type: Boolean, default: false },
+        checkedInAt: { type: Date, default: null },
+        isBlocked: { type: Boolean, default: false },
+        blockedAt: { type: Date, default: null },
+        blockedReason: { type: String, default: "", trim: true },
       },
     ],
     qrToken: { type: String, index: true },
@@ -68,10 +80,29 @@ const registrationSchema = new mongoose.Schema(
       type: String,
       default: "",
 
-    }
+    },
+
+    isBlocked: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    blockedAt: {
+      type: Date,
+      default: null,
+    },
+
+    blockedReason: {
+      type: String,
+      default: "",
+      trim: true,
+    },
   },
   { timestamps: true }
 );
+
+registrationSchema.index({ "participants.qrToken": 1 });
 
 const RegEventModel = mongoose.model("registrations", registrationSchema);
 

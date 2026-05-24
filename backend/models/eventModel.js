@@ -83,6 +83,12 @@ const eventSchema = new mongoose.Schema(
       default: 0
     },
 
+    investorIsFree: { type: Boolean, default: false },
+    investorPrice: { type: Number, default: 0 },
+    guestPaymentEnabled: { type: Boolean, default: false },
+    guestPrice: { type: Number, default: 0 },
+    freeGuestCount: { type: Number, default: 0, min: 0 },
+
     isRefundable: {
       type: Boolean,
       default: false
@@ -104,6 +110,23 @@ const eventSchema = new mongoose.Schema(
     location: {
       type: String,
       required: true
+    },
+
+    // ================= TICKET DESIGN =================
+    ticketDesign: {
+      mode: {
+        type: String,
+        enum: ["default", "custom"],
+        default: "default",
+      },
+      backgroundUrl: { type: String, default: null },
+      textTheme: {
+        type: String,
+        enum: ["dark", "light"],
+        default: "dark",
+      },
+      uploadedAt: { type: Date, default: null },
+      originalFileName: { type: String, default: null },
     },
 
     // ================= META =================

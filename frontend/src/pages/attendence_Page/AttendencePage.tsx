@@ -14,10 +14,12 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useAppDispatch, useAppSelector } from "../../hooks/hooks";
+import { useLiveEventSync } from "../../hooks/useLiveEventSync";
 import { fetchCreatedEvents } from "../../redux/EventThunks";
 import { useNavigate } from "react-router";
 import EventRegistrationPanel from "./EventRegistrationPanel";
 import AppPageLayout from "../../layouts/AppPageLayout";
+import { formatEventPricingLabel, paymentRequired } from "../../utils/pricing";
 
 export default function AttendencePage() {
   const dispatch = useAppDispatch();
@@ -36,6 +38,7 @@ export default function AttendencePage() {
 
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [search, setSearch] = useState("");
+  const [focusRegistrations, setFocusRegistrations] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1280);
 
   useEffect(() => {
@@ -48,6 +51,11 @@ export default function AttendencePage() {
     dispatch(fetchCreatedEvents(""));
   }, [dispatch]);
 
+  useLiveEventSync({
+    eventId: selectedEvent?._id,
+    enabled: Boolean(selectedEvent?._id && !isMobile),
+  });
+
   const filteredEvents = useMemo(() => {
     return events.filter((event) =>
       event.title?.toLowerCase().includes(search.toLowerCase())
@@ -59,6 +67,7 @@ export default function AttendencePage() {
       navigate(`/event-attendance/${event._id}`);
     } else {
       setSelectedEvent(event);
+      setFocusRegistrations(true);
     }
   };
 
@@ -70,7 +79,7 @@ export default function AttendencePage() {
       ]
     : [
         { title: "Total Events", value: events.length, icon: CalendarDays, color: "from-cyan-500 to-blue-500" },
-        { title: "Paid Events", value: events.filter((e: any) => e.isPaid).length, icon: Wallet, color: "from-pink-500 to-fuchsia-500" },
+        { title: "Monetized Events", value: events.filter((e: any) => paymentRequired(e, 0)).length, icon: Wallet, color: "from-pink-500 to-fuchsia-500" },
         { title: "With Guests", value: events.filter((e: any) => e.allowGuests).length, icon: Users, color: "from-emerald-500 to-green-500" },
       ];
 
@@ -135,7 +144,8 @@ export default function AttendencePage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      <div className={`grid grid-cols-1 gap-6 ${focusRegistrations && selectedEvent ? "xl:grid-cols-1" : "xl:grid-cols-12"}`}>
+        {!(focusRegistrations && selectedEvent) && (
         <div className="xl:col-span-5">
           <div className="app-card-flat overflow-hidden">
             <div className="p-6 border-b border-app-border flex items-center justify-between">
@@ -190,7 +200,7 @@ export default function AttendencePage() {
                           {event.locationType}
                         </span>
                         <span className="px-3 py-1 rounded-full bg-app-surface text-app-text text-xs border border-app-border">
-                          {event.isPaid ? "Paid" : "Free"}
+                          {formatEventPricingLabel(event)}
                         </span>
                       </div>
                     </div>
@@ -200,9 +210,10 @@ export default function AttendencePage() {
             </div>
           </div>
         </div>
+        )}
 
         {!isMobile && (
-          <div className="xl:col-span-7">
+          <div className={focusRegistrations && selectedEvent ? "w-full" : "xl:col-span-7"}>
             <AnimatePresence mode="wait">
               {selectedEvent ? (
                 <motion.div
@@ -210,9 +221,23 @@ export default function AttendencePage() {
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="app-card-raised overflow-hidden"
+                  className="app-card-raised overflow-hidden reg-attendance-workspace-shell"
                 >
-                  <EventRegistrationPanel eventId={selectedEvent._id} variant="compact" />
+                  {focusRegistrations && (
+                    <div className="px-6 py-3 border-b border-app-border flex items-center justify-between">
+                      <button
+                        type="button"
+                        className="text-sm text-app-cyan hover:opacity-80"
+                        onClick={() => setFocusRegistrations(false)}
+                      >
+                        Show event list
+                      </button>
+                      <span className="text-xs text-app-muted">Full-width registration workspace</span>
+                    </div>
+                  )}
+                  <div className="max-h-[calc(100vh-12rem)] overflow-y-auto custom-scroll">
+                    <EventRegistrationPanel eventId={selectedEvent._id} variant="compact" />
+                  </div>
                 </motion.div>
               ) : (
                 <motion.div

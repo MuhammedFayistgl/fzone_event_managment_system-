@@ -99,6 +99,10 @@ const qrScannerSlice =
                             action.payload?.message ||
                             "Verification failed";
 
+                        if (action.payload?.data) {
+                            state.currentScan = action.payload.data;
+                        }
+
                     }
                 );
 

@@ -1,55 +1,74 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import RecentRegistrationsUI from "../RecentRegistrationsUI";
 import AppPageLayout from "../../layouts/AppPageLayout";
+import API from "../../api/axios";
+import { downloadRegistrationsCsv } from "../../utils/registrationExport";
 
 type Props = {
-    mode?: "preview" | "full";
+  mode?: "preview" | "full";
 };
 
-const mockData = Array.from({ length: 20 }).map((_, i) => ({
-    id: i,
-    name: ["Aisha", "Jaza", "Faiha"][i % 3],
-    phone: "98" + Math.floor(10000000 + Math.random() * 90000000),
-    category: ["Family", "VIP", "General"][i % 3],
-    passStatus: i % 2 === 0 ? "RELEASED" : "PENDING",
-    checkIn: i % 2 === 0,
-    time: new Date(),
-}));
+type RegistrationRow = {
+  id: string;
+  name: string;
+  phone: string;
+  category: string;
+  passStatus: string;
+  checkIn: boolean;
+  time: string | Date;
+  eventTitle?: string;
+};
 
 const RecentRegistrationsContainer: React.FC<Props> = ({ mode = "preview" }) => {
-    const navigate = useNavigate();
-    const [search, setSearch] = useState("");
-    const [loading] = useState(false);
+  const navigate = useNavigate();
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState<RegistrationRow[]>([]);
 
-    const filtered = useMemo(() => {
-        return mockData.filter(
-            (item) =>
-                item.name.toLowerCase().includes(search.toLowerCase()) ||
-                item.phone.includes(search)
-        );
-    }, [search]);
+  useEffect(() => {
+    setLoading(true);
+    API.post("/admin/all-registrations", {
+      page: 1,
+      limit: mode === "preview" ? 8 : 100,
+      search: search.trim() || undefined,
+    })
+      .then((res) => setRows(res.data?.data?.registrations || []))
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false));
+  }, [mode, search]);
 
-    const content = (
-        <RecentRegistrationsUI
-            preview={mode === "preview"}
-            navigate={navigate}
-            filtered={filtered}
-            loading={loading}
-            search={search}
-            setSearch={setSearch}
-        />
+  const filtered = useMemo(() => rows, [rows]);
+
+  const handleExport = async () => {
+    const res = await API.post("/admin/all-registrations/export", {
+      search: search.trim() || undefined,
+    });
+    const exportRows = res.data?.data?.rows || [];
+    downloadRegistrationsCsv(exportRows);
+  };
+
+  const content = (
+    <RecentRegistrationsUI
+      preview={mode === "preview"}
+      navigate={navigate}
+      filtered={filtered}
+      loading={loading}
+      search={search}
+      setSearch={setSearch}
+      onExport={mode === "full" ? handleExport : undefined}
+    />
+  );
+
+  if (mode === "full") {
+    return (
+      <AppPageLayout title="All Registrations" embedded showGlow={false}>
+        {content}
+      </AppPageLayout>
     );
+  }
 
-    if (mode === "full") {
-        return (
-            <AppPageLayout title="All Registrations" embedded showGlow={false}>
-                {content}
-            </AppPageLayout>
-        );
-    }
-
-    return content;
+  return content;
 };
 
 export default RecentRegistrationsContainer;

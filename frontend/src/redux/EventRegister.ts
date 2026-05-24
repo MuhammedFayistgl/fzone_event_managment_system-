@@ -1,7 +1,23 @@
-import { createSlice } from "@reduxjs/toolkit";
+import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { EventFormState, Guest } from "../Types/event";
 import { checkInvestor, deleteRegisteredGuest, registerEvent } from "./Thunks/EventRegistorThunk";
 import { checkRegistrationStatus } from "./EventThunks";
+import type { LivePassType } from "../live/liveEvents";
+
+type LiveCheckInPatch = {
+  passType: LivePassType;
+  participantId?: string | null;
+  participantIndex?: number | null;
+  checkedInAt: string;
+};
+
+type LiveBlockPatch = {
+  target: LivePassType;
+  guestIndex?: number | null;
+  participantId?: string | null;
+  isBlocked: boolean;
+  blockedReason?: string;
+};
 
 
 interface EventState {
@@ -60,6 +76,7 @@ const eventRegistorSlice = createSlice({
         id: crypto.randomUUID(),
         name: "",
         relation: "wife",
+        gender: "Female",
         phone: "",
       });
     },
@@ -101,6 +118,69 @@ const eventRegistorSlice = createSlice({
     clearInvestor: (state) => {
       state.data = null;
     },
+    applyLiveCheckIn: (state, action: PayloadAction<LiveCheckInPatch>) => {
+      const registration = state.data?.registration;
+      if (!registration) return;
+
+      const { passType, participantId, participantIndex, checkedInAt } = action.payload;
+
+      if (passType === "investor") {
+        registration.isCheckedIn = true;
+        registration.checkedInAt = checkedInAt;
+        return;
+      }
+
+      const participants = registration.participants || [];
+      const index =
+        participantIndex != null && participantIndex >= 0
+          ? participantIndex
+          : participants.findIndex(
+              (p: { _id?: string }) =>
+                participantId && String(p._id) === String(participantId)
+            );
+
+      if (index >= 0 && participants[index]) {
+        participants[index] = {
+          ...participants[index],
+          isCheckedIn: true,
+          checkedInAt,
+        };
+        registration.participants = participants;
+      }
+    },
+    applyLiveBlock: (state, action: PayloadAction<LiveBlockPatch>) => {
+      const registration = state.data?.registration;
+      if (!registration) return;
+
+      const { target, guestIndex, participantId, isBlocked, blockedReason } = action.payload;
+      const now = isBlocked ? new Date().toISOString() : null;
+
+      if (target === "investor") {
+        registration.isBlocked = isBlocked;
+        registration.blockedAt = now;
+        registration.blockedReason = isBlocked ? blockedReason || "" : "";
+        return;
+      }
+
+      const participants = registration.participants || [];
+      const index =
+        guestIndex != null && guestIndex >= 0
+          ? guestIndex
+          : participants.findIndex(
+              (p: { _id?: string }) =>
+                participantId && String(p._id) === String(participantId)
+            );
+
+      if (index >= 0 && participants[index]) {
+        participants[index] = {
+          ...participants[index],
+          isBlocked,
+          blockedAt: now,
+          blockedReason: isBlocked ? blockedReason || "" : "",
+        };
+        registration.participants = participants;
+      }
+    },
   },
 
   extraReducers: (builder) => {
@@ -109,17 +189,15 @@ const eventRegistorSlice = createSlice({
       .addCase(
         deleteRegisteredGuest.fulfilled,
         (state, action: any) => {
-
-          if (state.data) {
-
+          if (state.data?.registration) {
             state.data = {
               ...state.data,
-              participants:
-                action.payload.participants,
+              registration: {
+                ...state.data.registration,
+                participants: action.payload.participants,
+              },
             };
-
           }
-
         }
       )
       // ================= REGISTER EVENT =================
@@ -131,7 +209,18 @@ const eventRegistorSlice = createSlice({
         .addCase(registerEvent.fulfilled, (state, action) => {
           state.registrationLoading = false;
           state.registrationSuccess = true;
-          state.data = action.payload;
+          const registration = action.payload?.registration ?? state.data?.registration;
+          const participants =
+            action.payload?.participants ?? registration?.participants ?? [];
+          state.data = {
+            ...(state.data || {}),
+            success: true,
+            registered: true,
+            investor: action.payload?.investor ?? state.data?.investor,
+            registration: registration
+              ? { ...registration, participants }
+              : { participants },
+          };
           state.guests = [];
         })
 
@@ -182,6 +271,8 @@ export const {
   updateGuest,
   removeGuest,
   resetGuests,
+  applyLiveCheckIn,
+  applyLiveBlock,
 } = eventRegistorSlice.actions;
 
 export default eventRegistorSlice.reducer;

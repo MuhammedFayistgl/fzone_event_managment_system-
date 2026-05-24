@@ -37,6 +37,7 @@ import {
 } from "../redux/Thunks/qrScannerThunk";
 import { resetScannerState } from "../redux/Slice/qrScannerSlice";
 import { getRegistrationInvestorName } from "../utils/getRegistrationInvestorName";
+import API from "../api/axios";
 
 
 
@@ -60,8 +61,6 @@ const GateScannerUltra = () => {
 
     const {
         currentScan,
-        loading,
-        error,
         success,
     } = useAppSelector(
         (s: any) => s.scanner
@@ -89,6 +88,33 @@ const GateScannerUltra = () => {
 
     const [isStarting, setIsStarting] =
         useState(false);
+
+    const [gateNames, setGateNames] = useState<string[]>([
+        "Main Gate",
+        "VIP Gate",
+        "Side Gate",
+    ]);
+    const [selectedGate, setSelectedGate] = useState(
+        () => localStorage.getItem("scannerGate") || "Main Gate"
+    );
+
+    useEffect(() => {
+        API.get("/admin/platform/gates")
+            .then((res) => {
+                const names = res.data?.data;
+                if (Array.isArray(names) && names.length) {
+                    setGateNames(names);
+                    if (!names.includes(selectedGate)) {
+                        setSelectedGate(names[0]);
+                    }
+                }
+            })
+            .catch(() => {});
+    }, [selectedGate]);
+
+    useEffect(() => {
+        localStorage.setItem("scannerGate", selectedGate);
+    }, [selectedGate]);
 
     // ======================================================
     // CLEANUP ON UNMOUNT (camera must start via user tap on mobile)
@@ -224,8 +250,7 @@ const GateScannerUltra = () => {
 
                                     token,
 
-                                    gateName:
-                                        "Main Gate",
+                                    gateName: selectedGate,
 
                                     checkInDevice:
                                         navigator.userAgent,
@@ -531,14 +556,29 @@ const GateScannerUltra = () => {
                                 <div>
 
                                     <h2 className="text-lg font-semibold text-app-text">
-                                        {getRegistrationInvestorName(currentScan)}
+                                        {currentScan?.holderName ||
+                                            getRegistrationInvestorName(currentScan)}
                                     </h2>
 
                                     <p className="text-sm text-app-muted">
-                                        {
-                                            currentScan?.phone
-                                        }
+                                        {currentScan?.passType === "guest"
+                                            ? `Guest · Guest of ${currentScan?.linkedInvestor?.name || "Investor"}`
+                                            : currentScan?.phone}
                                     </p>
+
+                                    {currentScan?.passType === "guest" && currentScan?.guest && (
+                                        <p className="text-xs text-app-muted mt-1 capitalize">
+                                            {[currentScan.guest.type, currentScan.guest.gender]
+                                                .filter(Boolean)
+                                                .join(" · ")}
+                                        </p>
+                                    )}
+
+                                    {currentScan?.passType === "investor" && (
+                                        <p className="text-xs font-semibold text-blue-400 mt-1">
+                                            Investor entry
+                                        </p>
+                                    )}
 
                                 </div>
 
@@ -572,9 +612,17 @@ const GateScannerUltra = () => {
                                         Gate
                                     </p>
 
-                                    <p className="text-app-text mt-1">
-                                        Main Gate
-                                    </p>
+                                    <select
+                                        className="event-register-guests__select mt-1 w-full"
+                                        value={selectedGate}
+                                        onChange={(e) => setSelectedGate(e.target.value)}
+                                    >
+                                        {gateNames.map((gate) => (
+                                            <option key={gate} value={gate}>
+                                                {gate}
+                                            </option>
+                                        ))}
+                                    </select>
 
                                 </div>
 
