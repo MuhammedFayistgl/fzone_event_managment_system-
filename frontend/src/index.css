@@ -2,3 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Load after Tailwind preflight — admin nav must never show link underline on hover */
+/* RSuite sets --rs-link-hover-decoration: underline on all <a> — neutralize in admin nav */
+.admin-sidebar,
+.admin-mobile-nav {
+  --rs-link-hover-decoration: none;
+  --rs-link-active-decoration: none;
+}
+
+.admin-sidebar a,
+.admin-sidebar a:hover,
+.admin-sidebar a:focus,
+.admin-sidebar a:focus-visible,
+.admin-sidebar a:visited,
+.admin-sidebar a:active,
+.admin-sidebar a.active,
+.admin-sidebar a *,
+.admin-sidebar a:hover * {
+  text-decoration: none !important;
+  text-decoration-line: none !important;
+}
+
+.admin-mobile-nav__link,
+.admin-mobile-nav__link:hover,
+.admin-mobile-nav__link:focus,
+.admin-mobile-nav__link--active {
+  text-decoration: none !important;
+  text-decoration-line: none !important;
+}
