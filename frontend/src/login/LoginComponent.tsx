@@ -10,7 +10,6 @@ import { reconnectLiveSocket } from "../live/socket";
 import { clearAdminProfileCache } from "../hooks/useAdminProfile";
 import AuthShell from "../components/auth/AuthShell";
 import { getApiErrorMessage } from "../utils/apiError";
-import { getApiBaseURL } from "../api/axios";
 
 type LoginFormType = {
   email: string;
@@ -55,21 +54,6 @@ const LoginComponent = () => {
         accessToken: string;
         role?: string;
       };
-      // #region agent log
-      fetch("http://127.0.0.1:7491/ingest/9ee3c56f-bbdc-4afb-949c-a1d4340854c1", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "715abf" },
-        body: JSON.stringify({
-          sessionId: "715abf",
-          runId: "post-fix",
-          hypothesisId: "H-login-success",
-          location: "LoginComponent.tsx:handleSubmit",
-          message: "login success",
-          data: { role: res.role ?? null, apiBase: getApiBaseURL() },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       localStorage.setItem("accessToken", res.accessToken);
       setAccessToken(res.accessToken);
       clearAdminProfileCache();
@@ -78,25 +62,6 @@ const LoginComponent = () => {
       navigate("/");
     } catch (err: unknown) {
       const message = getApiErrorMessage(err, "Login failed");
-      // #region agent log
-      fetch("http://127.0.0.1:7491/ingest/9ee3c56f-bbdc-4afb-949c-a1d4340854c1", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "715abf" },
-        body: JSON.stringify({
-          sessionId: "715abf",
-          runId: "post-fix",
-          hypothesisId: "H-login-fail",
-          location: "LoginComponent.tsx:handleSubmit",
-          message: "login failed",
-          data: {
-            apiBase: getApiBaseURL(),
-            errorMessage: message,
-            status: (err as { response?: { status?: number } })?.response?.status ?? null,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       setError(message);
       toast.error(message);
     }

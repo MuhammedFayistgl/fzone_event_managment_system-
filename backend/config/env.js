@@ -35,10 +35,12 @@ export function isProduction() {
 }
 
 export function cookieOptions(maxAgeMs) {
+  // Cross-origin SPA (e.g. Vercel frontend + Render API) requires SameSite=None.
+  const sameSite = process.env.COOKIE_SAME_SITE?.toLowerCase() || (isProduction() ? "none" : "lax");
   return {
     httpOnly: true,
-    secure: isProduction(),
-    sameSite: isProduction() ? "strict" : "lax",
+    secure: isProduction() || sameSite === "none",
+    sameSite,
     maxAge: maxAgeMs,
   };
 }
