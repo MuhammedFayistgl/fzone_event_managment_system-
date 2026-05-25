@@ -8,6 +8,7 @@ import { useDispatch } from "react-redux";
 import type { AppDispatch } from "../redux/store";
 import { LoginAdmin } from "../redux/store/slices/ExtraSlice/LoginExtraSlice";
 import { setAccessToken } from "../api/axios";
+import { reconnectLiveSocket } from "../live/socket";
 import { useNavigate } from "react-router-dom";
 
 type LoginFormType = {
@@ -48,6 +49,7 @@ const LoginComponent = () => {
             const res = await dispatch(LoginAdmin(formValue)).unwrap() as { accessToken: string };
             localStorage.setItem("accessToken", res.accessToken);
             setAccessToken(res.accessToken);
+            reconnectLiveSocket();
             navigate("/");
         } catch (err: unknown) {
             const error = err as any;

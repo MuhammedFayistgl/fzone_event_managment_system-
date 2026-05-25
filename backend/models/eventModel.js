@@ -66,6 +66,12 @@ const eventSchema = new mongoose.Schema(
       default: 0
     },
 
+    registeredCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
     maxPerUser: {
       type: Number,
       required: true,

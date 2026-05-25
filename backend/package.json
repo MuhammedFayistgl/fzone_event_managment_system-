@@ -11,9 +11,14 @@
     "import:investors": "node scripts/importInvestorsFromExcel.js --confirm",
     "import:investors:dry": "node scripts/importInvestorsFromExcel.js --dry-run",
     "import:investors:revert": "node scripts/revertInvestorsImport.js",
+    "investors:fix-gender:dry": "node scripts/fixInvestorGenderFromNames.js --dry-run",
+    "investors:fix-gender": "node scripts/fixInvestorGenderFromNames.js --confirm",
     "registrations:repair": "node scripts/repairRegistrationInvestors.js",
     "registrations:cleanup:dry": "node scripts/cleanupOrphanRegistrations.js --dry-run",
-    "registrations:cleanup": "node scripts/cleanupOrphanRegistrations.js --confirm"
+    "registrations:cleanup": "node scripts/cleanupOrphanRegistrations.js --confirm",
+    "audit:backfill": "node scripts/backfillAuditLogs.js",
+    "audit:backfill:dry": "node scripts/backfillAuditLogs.js --dry-run",
+    "test:investor-import": "node scripts/testInvestorImportValidation.js"
   },
   "keywords": [],
   "author": "",
@@ -27,6 +32,7 @@
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "express-rate-limit": "^7.5.1",
+    "helmet": "^8.2.0",
     "http-errors": "~1.6.3",
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.1.1",

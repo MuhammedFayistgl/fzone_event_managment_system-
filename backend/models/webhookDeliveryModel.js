@@ -20,5 +20,7 @@ const webhookDeliverySchema = new mongoose.Schema(
 );
 
 webhookDeliverySchema.index({ createdAt: -1 });
+webhookDeliverySchema.index({ status: 1, createdAt: -1 });
+webhookDeliverySchema.index({ eventType: 1, createdAt: -1 });
 
 export default mongoose.model("WebhookDelivery", webhookDeliverySchema);

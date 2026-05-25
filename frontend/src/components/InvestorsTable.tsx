@@ -95,11 +95,12 @@ const validateInvestor = (values: Partial<InvestorRow>) => {
 };
 
 const exportToCSV = (rows: InvestorRow[]) => {
-    const headers = ["Code", "Name", "Phone", "Gender"];
+    const headers = ["No", "Code_No", "Name", "Phone_No", "Gender"];
     const csv = [
         headers.join(","),
         ...rows.map((row) =>
             [
+                row.No ?? "",
                 row.Code_No,
                 `"${String(row.Name).replace(/"/g, '""')}"`,
                 row.Phone_No,
@@ -300,8 +301,12 @@ export default function InvestorsTable({ preview }: { preview?: boolean }) {
 
         try {
             if (mode === "create") {
-                await dispatch(createInvestorData(payload)).unwrap();
-                toast.success("Investor Added");
+                const res = await dispatch(createInvestorData(payload)).unwrap();
+                toast.success(
+                    res?.genderCorrected
+                        ? `Investor added — gender set to ${res?.data?.Gender ?? payload.Gender} from name`
+                        : "Investor added"
+                );
                 table?.setCreatingRow(null);
             } else if (rowId) {
                 await dispatch(
@@ -313,7 +318,11 @@ export default function InvestorsTable({ preview }: { preview?: boolean }) {
             refetch();
             return true;
         } catch (err: any) {
-            toast.error(err?.response?.data?.message || "Save failed");
+            const message =
+                err?.response?.data?.message ||
+                err?.message ||
+                "Save failed";
+            toast.error(message);
             return false;
         }
     };
@@ -960,6 +969,14 @@ export default function InvestorsTable({ preview }: { preview?: boolean }) {
                 </div>
 
                 <div className="pro-toolbar-group pro-toolbar-group--actions">
+                    <Tooltip title="Investor Data Studio — import & schema">
+                        <IconButton
+                            className="pro-icon-btn"
+                            onClick={() => navigate("/user-management/data-studio")}
+                        >
+                            <SlidersHorizontal size={18} />
+                        </IconButton>
+                    </Tooltip>
                     <Tooltip title="Export All">
                         <IconButton className="pro-icon-btn" onClick={() => exportToCSV(data)}>
                             <FileDownloadIcon />

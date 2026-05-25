@@ -23,11 +23,43 @@ import {
   emitCheckInUpdated,
   emitRegistrationCreated,
 } from "../live/liveHub.js";
+import { logAuditAction } from "../utils/auditLog.js";
 import { notifyDashboardMetricsChanged } from "../utils/dashboardCache.js";
 import { getOrgSettings } from "../utils/appSettings.js";
 import WaitlistEntry from "../models/waitlistModel.js";
 import { syncAccessAfterRefund } from "../utils/paymentRefund.js";
 import { notifyUser } from "../utils/notifications.js";
+import { createNotification } from "../services/notificationService.js";
+import {
+  sanitizeRegistrationForOwner,
+  sanitizeRegistrationStatus,
+  sanitizeInvestorPublic,
+} from "../utils/publicResponse.js";
+import { issuePassSessionToken } from "../utils/passSession.js";
+
+async function reserveEventCapacity(eventId, maxParticipants) {
+  if (!maxParticipants || maxParticipants <= 0) return { ok: true, reserved: false };
+
+  const updated = await eventModel.findOneAndUpdate(
+    {
+      _id: eventId,
+      $expr: { $lt: [{ $ifNull: ["$registeredCount", 0] }, maxParticipants] },
+    },
+    { $inc: { registeredCount: 1 } },
+    { new: true }
+  );
+
+  return updated
+    ? { ok: true, reserved: true }
+    : { ok: false, reserved: false };
+}
+
+async function releaseEventCapacity(eventId) {
+  await eventModel.updateOne(
+    { _id: eventId, registeredCount: { $gt: 0 } },
+    { $inc: { registeredCount: -1 } }
+  );
+}
 
 
 
@@ -221,11 +253,9 @@ export const registerEvent = async (req, res) => {
           eventId,
           success: true,
           message: "Already registered",
-          investor,
-          qr: existing.qrCodeImage,
-          token: existing.qrToken,
-          participants: existing.participants,
-          registration: existing,
+          investor: sanitizeInvestorPublic(investor),
+          registration: sanitizeRegistrationForOwner(existing),
+          passSessionToken: issuePassSessionToken(eventId, phoneKey),
         });
       }
 
@@ -243,17 +273,15 @@ export const registerEvent = async (req, res) => {
         eventId,
         success: true,
         message: "Registration updated successfully",
-        qr: existing.qrCodeImage,
-        token: existing.qrToken,
-        investor,
-        participants: existing.participants,
-        registration: existing,
+        investor: sanitizeInvestorPublic(investor),
+        registration: sanitizeRegistrationForOwner(existing),
+        passSessionToken: issuePassSessionToken(eventId, phoneKey),
       });
     }
 
     if (!existing && event.maxParticipants > 0) {
-      const currentCount = await RegEventModel.countDocuments({ eventId });
-      if (currentCount >= event.maxParticipants) {
+      const capacity = await reserveEventCapacity(eventId, event.maxParticipants);
+      if (!capacity.ok) {
         if (settings.waitlistEnabled) {
           await WaitlistEntry.findOneAndUpdate(
             { eventId, phone: phoneKey },
@@ -266,6 +294,13 @@ export const registerEvent = async (req, res) => {
             },
             { upsert: true, new: true }
           );
+
+          createNotification("waitlist.joined", {
+            eventId: String(eventId),
+            eventTitle: event.title,
+            phone: phoneKey,
+            entity: { type: "registration", eventId: String(eventId), phone: phoneKey },
+          }).catch(() => {});
 
           return res.status(202).json({
             success: true,
@@ -281,6 +316,8 @@ export const registerEvent = async (req, res) => {
       }
     }
 
+    const capacityReserved = !existing && event.maxParticipants > 0;
+
     const newRegPaymentCheck = await assertPaymentCoversGuests(
       event,
       eventId,
@@ -288,6 +325,7 @@ export const registerEvent = async (req, res) => {
       participants.length
     );
     if (newRegPaymentCheck && !newRegPaymentCheck.ok) {
+      if (capacityReserved) await releaseEventCapacity(eventId);
       return res.status(400).json({
         success: false,
         message: "Payment not completed",
@@ -298,16 +336,45 @@ export const registerEvent = async (req, res) => {
     payment = newRegPaymentCheck?.payment ?? null;
 
     // ================= 11. SAVE REGISTRATION + GENERATE PASSES =================
-    const registration = await RegEventModel.create({
-      eventId,
-      investorId: investor._id,
-      phone: phoneKey,
-      investorName: investor.Name,
-      investorCode: investor.Code_No,
-      participants,
-      isCheckedIn: false,
-      checkedInAt: null,
-    });
+    let registration;
+
+    try {
+      registration = await RegEventModel.create({
+        eventId,
+        investorId: investor._id,
+        phone: phoneKey,
+        investorName: investor.Name,
+        investorCode: investor.Code_No,
+        participants,
+        isCheckedIn: false,
+        checkedInAt: null,
+      });
+    } catch (createErr) {
+      if (createErr?.code === 11000) {
+        if (capacityReserved) await releaseEventCapacity(eventId);
+
+        const raced = await RegEventModel.findOne({
+          eventId,
+          ...registrationPhoneQuery(normalized),
+        });
+
+        if (raced) {
+          await ensureParticipantPasses(raced);
+          const racedInvestor = await investorsModal.findOne(
+            investorPhoneQuery(normalized)
+          );
+          return res.json({
+            eventId,
+            success: true,
+            message: "Already registered",
+            investor: sanitizeInvestorPublic(racedInvestor),
+            registration: sanitizeRegistrationForOwner(raced),
+            passSessionToken: issuePassSessionToken(eventId, phoneKey),
+          });
+        }
+      }
+      throw createErr;
+    }
 
     await ensureParticipantPasses(registration);
 
@@ -327,23 +394,42 @@ export const registerEvent = async (req, res) => {
       message: `Your registration for ${event.title} is confirmed. Your digital entry pass is ready.`,
     }).catch(() => {});
 
+    createNotification("registration.created", {
+      eventId: String(eventId),
+      eventTitle: event.title,
+      phone: phoneKey,
+      registrationId: String(registration._id),
+      investorName: investor?.Name,
+      entity: {
+        type: "registration",
+        id: String(registration._id),
+        eventId: String(eventId),
+        phone: phoneKey,
+      },
+    }).catch(() => {});
+
+    createNotification("pass.ready", {
+      eventId: String(eventId),
+      eventTitle: event.title,
+      phone: phoneKey,
+      alsoNotifyPassUser: { eventId: String(eventId), phone: phoneKey },
+    }).catch(() => {});
+
     return res.json({
       eventId,
       success: true,
       message: "Registration successful",
-      qr: registration.qrCodeImage,
-      token: registration.qrToken,
-      investor,
-      participants: registration.participants,
-      registration,
+      investor: sanitizeInvestorPublic(investor),
+      registration: sanitizeRegistrationForOwner(registration),
+      passSessionToken: issuePassSessionToken(eventId, phoneKey),
     });
 
   } catch (err) {
     console.error("REGISTER EVENT ERROR:", err);
 
-    return res.status(500).json({
+    return res.status(err?.code === 11000 ? 409 : 500).json({
       success: false,
-      message: err.message || "Server error",
+      message: err?.code === 11000 ? "Registration already exists for this phone" : err.message || "Server error",
     });
   }
 };
@@ -391,6 +477,16 @@ export const deleteGuestFromRegistration = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: "Not authorized to modify this registration",
+      });
+    }
+
+    if (
+      guestIndex < 0 ||
+      guestIndex >= (registration.participants?.length || 0)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid guest index",
       });
     }
 
@@ -556,7 +652,9 @@ export const checkRegistrationStatus = async (req, res) => {
       return res.json({
         success: true,
         registered: true,
-        data: existing,
+        data: sanitizeRegistrationStatus(existing),
+        registration: sanitizeRegistrationForOwner(existing),
+        passSessionToken: issuePassSessionToken(eventId, normalized.string),
       });
     }
 
@@ -773,6 +871,37 @@ export const verifyQR = async (req, res) => {
     });
 
     await notifyDashboardMetricsChanged();
+
+    await logAuditAction({
+      action: "registration.check_in",
+      category: "registration",
+      actor: req.user,
+      targetType: "registration",
+      targetId: String(registration._id),
+      eventId: registration.eventId?._id || registration.eventId,
+      phone: registration.phone,
+      metadata: {
+        passType: passMatch.passType,
+        gateName: registration.gateName,
+        holderName: isInvestorPass ? linkedInvestor.name : guestParticipant?.name,
+      },
+      req,
+    });
+
+    createNotification("checkin.completed", {
+      eventId: String(registration.eventId?._id || registration.eventId),
+      eventTitle: registration.eventId?.title || "",
+      phone: registration.phone,
+      registrationId: String(registration._id),
+      holderName: isInvestorPass ? linkedInvestor.name : guestParticipant?.name,
+      gateName: registration.gateName,
+      entity: {
+        type: "registration",
+        id: String(registration._id),
+        eventId: String(registration.eventId?._id || registration.eventId),
+        phone: registration.phone,
+      },
+    }).catch(() => {});
 
     // ================= RESPONSE =================
 

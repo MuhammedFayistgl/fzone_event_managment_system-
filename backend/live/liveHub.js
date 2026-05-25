@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import { normalizePhone } from "../utils/phone.js";
+import { verifyPassSessionToken } from "../utils/passSession.js";
 
 /** @type {import("socket.io").Server | null} */
 let io = null;
@@ -17,10 +18,26 @@ export function passRoomId(eventId, phone) {
   return `pass:${String(eventId)}:${phoneKey}`;
 }
 
+export function staffRoomId(adminId) {
+  return `staff:${String(adminId)}`;
+}
+
+export function roleRoomId(role) {
+  return `role:${String(role)}`;
+}
+
+export function passUserRoomId(phone) {
+  const normalized = normalizePhone(phone);
+  const phoneKey = normalized.valid ? normalized.string : String(phone).replace(/\D/g, "");
+  return `passuser:${phoneKey}`;
+}
+
 function verifySocketToken(token) {
   if (!token) return null;
   try {
-    return jwt.verify(token, process.env.ACCESS_SECRET);
+    const decoded = jwt.verify(token, process.env.ACCESS_SECRET);
+    if (decoded.type === "pass_session") return null;
+    return decoded;
   } catch {
     return null;
   }
@@ -64,14 +81,38 @@ export function initLiveHub(httpServer, { corsAllowList, isAllowedDevOrigin }) {
       socket.leave(eventRoomId(eventId));
     });
 
-    socket.on("join:pass", ({ eventId, phone } = {}) => {
+    socket.on("join:pass", ({ eventId, phone, passSessionToken } = {}) => {
       if (!eventId || !phone) return;
+      if (!verifyPassSessionToken(passSessionToken, eventId, phone)) return;
       socket.join(passRoomId(eventId, phone));
     });
 
     socket.on("leave:pass", ({ eventId, phone } = {}) => {
       if (!eventId || !phone) return;
       socket.leave(passRoomId(eventId, phone));
+    });
+
+    socket.on("join:staff", () => {
+      const user = socket.data.user;
+      if (!user?.id) return;
+      if (!STAFF_ROLES.has(user.role || "")) return;
+      socket.join(staffRoomId(user.id));
+      if (user.role) socket.join(roleRoomId(user.role));
+      socket.join("org:staff");
+    });
+
+    socket.on("leave:staff", () => {
+      const user = socket.data.user;
+      if (!user?.id) return;
+      socket.leave(staffRoomId(user.id));
+      if (user.role) socket.leave(roleRoomId(user.role));
+      socket.leave("org:staff");
+    });
+
+    socket.on("join:passuser", ({ phone, passSessionToken, eventId } = {}) => {
+      if (!phone || !eventId) return;
+      if (!verifyPassSessionToken(passSessionToken, eventId, phone)) return;
+      socket.join(passUserRoomId(phone));
     });
   });
 
@@ -114,4 +155,56 @@ export function emitRegistrationBlocked(payload) {
 export function emitDashboardUpdated() {
   if (!io) return;
   io.emit("dashboard:updated", { at: new Date().toISOString() });
+}
+
+export function emitNotificationToRecipients({
+  recipientType,
+  recipientId,
+  notification,
+  unreadCount,
+}) {
+  if (!io) return;
+
+  const payload = {
+    notification,
+    unreadCount,
+    at: new Date().toISOString(),
+  };
+
+  if (recipientType === "admin") {
+    emitToRooms([staffRoomId(recipientId)], "notification:new", payload);
+    if (notification?.role) {
+      emitToRooms([roleRoomId(notification.role)], "notification:new", payload);
+    }
+    return;
+  }
+
+  if (recipientType === "pass_user") {
+    emitToRooms([passUserRoomId(recipientId)], "notification:new", payload);
+  }
+}
+
+export function emitNotificationUpdated({
+  recipientType,
+  recipientId,
+  notificationId,
+  unreadCount,
+  patch = {},
+}) {
+  if (!io) return;
+  const payload = {
+    notificationId,
+    unreadCount,
+    patch,
+    at: new Date().toISOString(),
+  };
+
+  if (recipientType === "admin") {
+    emitToRooms([staffRoomId(recipientId)], "notification:updated", payload);
+    return;
+  }
+
+  if (recipientType === "pass_user") {
+    emitToRooms([passUserRoomId(recipientId)], "notification:updated", payload);
+  }
 }

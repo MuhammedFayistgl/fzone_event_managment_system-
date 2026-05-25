@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import AppPageLayout from "../../layouts/AppPageLayout";
 import { useAppDispatch, useAppSelector } from "../../hooks/hooks";
 import { useLivePaymentLedgerSync } from "../../hooks/useLivePaymentLedgerSync";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { fetchCreatedEvents } from "../../redux/EventThunks";
 import {
   fetchPaymentLedger,
@@ -23,9 +25,14 @@ import type {
   PaymentLedgerStatus,
   RefundReason,
 } from "../../Types/paymentLedger.types";
+import {
+  useHighlightMatcher,
+  useNotificationHighlightParam,
+} from "../../hooks/useNotificationHighlight";
 
 export default function PaymentsPage() {
   const dispatch = useAppDispatch();
+  const [searchParams] = useSearchParams();
   const [selected, setSelected] = useState<PaymentLedgerRow | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [refundRow, setRefundRow] = useState<PaymentLedgerRow | null>(null);
@@ -37,8 +44,27 @@ export default function PaymentsPage() {
   const pagination = useAppSelector((s) => s.paymentLedger.pagination);
   const filters = useAppSelector((s) => s.paymentLedger.filters);
   const loading = useAppSelector((s) => s.paymentLedger.loading);
+  const ledgerError = useAppSelector((s) => s.paymentLedger.error);
   const refundLoading = useAppSelector((s) => s.paymentLedger.refundLoading);
   const initialized = useAppSelector((s) => s.paymentLedger.initialized);
+  const debouncedSearch = useDebouncedValue(filters.search, 350);
+  const { highlightId } = useNotificationHighlightParam();
+  const isHighlighted = useHighlightMatcher(highlightId);
+
+  useEffect(() => {
+    if (!highlightId || !rows.length) return;
+    const match = rows.find((row) => isHighlighted(row));
+    if (!match) return;
+    const timer = window.setTimeout(() => {
+      const el = document.getElementById(`payment-row-${match._id}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [highlightId, rows, isHighlighted]);
+  const queryFilters = useMemo(
+    () => ({ ...filters, search: debouncedSearch }),
+    [filters, debouncedSearch]
+  );
 
   const eventOptions = useMemo(
     () =>
@@ -50,12 +76,19 @@ export default function PaymentsPage() {
   );
 
   const loadLedger = useCallback(() => {
-    dispatch(fetchPaymentLedger(filters));
-  }, [dispatch, filters]);
+    dispatch(fetchPaymentLedger(queryFilters));
+  }, [dispatch, queryFilters]);
 
   useEffect(() => {
     dispatch(fetchCreatedEvents(""));
   }, [dispatch]);
+
+  useEffect(() => {
+    const urlSearch = searchParams.get("search")?.trim();
+    if (urlSearch && urlSearch !== filters.search) {
+      dispatch(setPaymentLedgerFilters({ search: urlSearch, page: 1 }));
+    }
+  }, [dispatch, searchParams, filters.search]);
 
   useEffect(() => {
     loadLedger();
@@ -161,6 +194,15 @@ export default function PaymentsPage() {
       maxWidth="wide"
     >
       <div className="payments-page space-y-5">
+        {ledgerError && (
+          <div
+            className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-300"
+            role="alert"
+          >
+            {ledgerError}
+          </div>
+        )}
+
         <PaymentsStatsRow
           statistics={statistics}
           loading={loading && !initialized}
@@ -191,6 +233,7 @@ export default function PaymentsPage() {
           onPageChange={(page) => updateFilters({ page })}
           onView={handleView}
           onRefund={handleOpenRefund}
+          isHighlighted={isHighlighted}
         />
       </div>
 

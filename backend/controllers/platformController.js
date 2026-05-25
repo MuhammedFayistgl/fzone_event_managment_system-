@@ -13,6 +13,7 @@ import {
 } from "../utils/resolveRegistrationInvestors.js";
 import { getOrgSettings, updateOrgSettings } from "../utils/appSettings.js";
 import { logAuditAction } from "../utils/auditLog.js";
+import { createNotification } from "../services/notificationService.js";
 import {
   getRefundableRemaining,
   mapRefundEntry,
@@ -21,6 +22,28 @@ import {
 } from "../utils/paymentRefund.js";
 import { getNetPaymentAmount } from "../utils/paymentRefund.js";
 import razorpay, { isRazorpayConfigured } from "../utils/razorpayClient.js";
+import {
+  getSummary,
+  getEnrichedPayments,
+  getTransactionDetail,
+  buildAnalytics,
+  getActivityFeed,
+  resolveTransaction,
+} from "../services/reconciliationService.js";
+import {
+  buildSummary as buildAuditSummary,
+  listAuditLogs,
+  getAuditLogDetail as fetchAuditLogDetail,
+  buildAnalytics as buildAuditAnalytics,
+  exportAuditLogs,
+} from "../services/auditLogService.js";
+import {
+  buildSummary as buildWebhookSummary,
+  listWebhookDeliveries,
+  getWebhookDetail as fetchWebhookDetail,
+  buildAnalytics as buildWebhookAnalytics,
+  exportWebhookDeliveries,
+} from "../services/webhookDeliveryService.js";
 
 function buildPaymentLedgerQuery(body = {}) {
   const { eventId, status, search, dateFrom, dateTo } = body;
@@ -110,6 +133,10 @@ export const patchPlatformSettings = async (req, res) => {
       req,
     });
 
+    createNotification("settings.updated", {
+      sender: req.user,
+    }).catch(() => {});
+
     return res.json({
       success: true,
       message: "Settings updated",
@@ -129,23 +156,62 @@ export const patchPlatformSettings = async (req, res) => {
 
 export const getAuditLogs = async (req, res) => {
   try {
-    const page = Math.max(Number(req.query.page) || 1, 1);
-    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
-    const category = req.query.category;
-    const query = category ? { category } : {};
-
-    const [rows, total] = await Promise.all([
-      AuditLog.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
-      AuditLog.countDocuments(query),
-    ]);
-
-    return res.json({
-      success: true,
-      data: {
-        rows,
-        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
-      },
+    const data = await listAuditLogs(req.query, {
+      page: req.query.page,
+      limit: req.query.limit,
+      sortBy: req.query.sortBy,
+      sortOrder: req.query.sortOrder,
     });
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getAuditLogSummary = async (req, res) => {
+  try {
+    const data = await buildAuditSummary(req.query);
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getAuditLogDetail = async (req, res) => {
+  try {
+    const data = await fetchAuditLogDetail(req.params.id);
+    if (!data) {
+      return res.status(404).json({ success: false, message: "Audit entry not found" });
+    }
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getAuditLogAnalytics = async (req, res) => {
+  try {
+    const data = await buildAuditAnalytics(req.query);
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const exportAuditLogsHandler = async (req, res) => {
+  try {
+    const filters = { ...(req.body || {}), ...(req.query || {}) };
+    const rows = await exportAuditLogs(filters);
+
+    await logAuditAction({
+      action: "audit.export",
+      category: "export",
+      actor: req.user,
+      metadata: { count: rows.length },
+      req,
+    });
+
+    return res.json({ success: true, data: { rows } });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -153,23 +219,62 @@ export const getAuditLogs = async (req, res) => {
 
 export const getWebhookDeliveries = async (req, res) => {
   try {
-    const page = Math.max(Number(req.query.page) || 1, 1);
-    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
-    const status = req.query.status;
-
-    const query = status ? { status } : {};
-    const [rows, total] = await Promise.all([
-      WebhookDelivery.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
-      WebhookDelivery.countDocuments(query),
-    ]);
-
-    return res.json({
-      success: true,
-      data: {
-        rows,
-        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
-      },
+    const data = await listWebhookDeliveries(req.query, {
+      page: req.query.page,
+      limit: req.query.limit,
+      sortBy: req.query.sortBy,
+      sortOrder: req.query.sortOrder,
     });
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getWebhookSummary = async (req, res) => {
+  try {
+    const data = await buildWebhookSummary(req.query);
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getWebhookDetail = async (req, res) => {
+  try {
+    const data = await fetchWebhookDetail(req.params.id);
+    if (!data) {
+      return res.status(404).json({ success: false, message: "Webhook delivery not found" });
+    }
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getWebhookAnalytics = async (req, res) => {
+  try {
+    const data = await buildWebhookAnalytics(req.query);
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const exportWebhooksHandler = async (req, res) => {
+  try {
+    const filters = { ...(req.body || {}), ...(req.query || {}) };
+    const rows = await exportWebhookDeliveries(filters);
+
+    await logAuditAction({
+      action: "webhooks.export",
+      category: "webhook",
+      actor: req.user,
+      metadata: { count: rows.length },
+      req,
+    });
+
+    return res.json({ success: true, data: { rows } });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -323,56 +428,119 @@ export const exportPaymentLedgerAll = async (req, res) => {
 
 export const getFinanceReconciliation = async (req, res) => {
   try {
-    const eventId = req.query.eventId;
-    const paymentQuery = { status: { $in: ["success", "refunded"] } };
-    if (eventId && mongoose.Types.ObjectId.isValid(eventId)) {
-      paymentQuery.eventId = eventId;
+    const data = await getSummary(req.query);
+    const mismatchCount = data?.disputed?.value ?? 0;
+    if (mismatchCount > 0) {
+      createNotification("reconciliation.mismatch", {
+        count: mismatchCount,
+        entity: { type: "reconciliation", id: "summary" },
+      }).catch(() => {});
     }
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
 
-    const payments = await Payment.find(paymentQuery)
-      .select("amount status refundAmount refunds razorpay_payment_id paidAt eventId phone")
-      .lean();
+export const getReconciliationSummary = getFinanceReconciliation;
 
-    let ledgerGross = 0;
-    let ledgerNet = 0;
-    let ledgerRefunded = 0;
-    let pendingRefunds = 0;
-
-    for (const payment of payments) {
-      const gross = Number(payment.amount || 0);
-      const activeRefund = getActiveRefundTotal(payment);
-      const processedRefund = getProcessedRefundTotal(payment);
-      ledgerGross += gross;
-      ledgerRefunded += processedRefund;
-      ledgerNet += getNetPaymentAmount(payment);
-      pendingRefunds += Math.max(0, activeRefund - processedRefund);
-    }
-
-    let razorpayCaptured = null;
-    if (isRazorpayConfigured()) {
-      try {
-        const rpPayments = await razorpay.payments.all({ count: 100 });
-        razorpayCaptured = (rpPayments?.items || [])
-          .filter((item) => item.status === "captured")
-          .reduce((sum, item) => sum + Number(item.amount || 0) / 100, 0);
-      } catch (err) {
-        razorpayCaptured = null;
-      }
-    }
+export const getReconciliationTransactions = async (req, res) => {
+  try {
+    const { rows, total, page, limit } = await getEnrichedPayments(req.query, {
+      page: req.query.page,
+      limit: req.query.limit,
+      sortBy: req.query.sortBy,
+      sortOrder: req.query.sortOrder,
+    });
 
     return res.json({
       success: true,
       data: {
-        ledgerGross,
-        ledgerNet,
-        ledgerRefunded,
-        pendingRefunds,
-        razorpayCapturedSample: razorpayCaptured,
-        paymentCount: payments.length,
-        note:
-          "Razorpay sample uses latest 100 captured payments. Use Razorpay dashboard for full settlement reconciliation.",
+        rows,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit) || 1,
+        },
       },
     });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getReconciliationTransactionDetail = async (req, res) => {
+  try {
+    const detail = await getTransactionDetail(req.params.id);
+    if (!detail) {
+      return res.status(404).json({ success: false, message: "Transaction not found" });
+    }
+    return res.json({ success: true, data: detail });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getReconciliationAnalytics = async (req, res) => {
+  try {
+    const data = await buildAnalytics(req.query);
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getReconciliationActivity = async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 20, 50);
+    const data = await getActivityFeed(limit);
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const exportReconciliation = async (req, res) => {
+  try {
+    const filters = { ...(req.body || {}), ...(req.query || {}) };
+    const { rows } = await getEnrichedPayments(filters, { page: 1, limit: 10000 });
+
+    await logAuditAction({
+      action: "reconciliation.export",
+      category: "export",
+      actor: req.user,
+      metadata: { count: rows.length },
+      req,
+    });
+
+    return res.json({ success: true, data: { rows } });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const resolveReconciliationTransaction = async (req, res) => {
+  try {
+    const { note } = req.body || {};
+    const updated = await resolveTransaction(req.params.id, { note });
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "Transaction not found" });
+    }
+
+    await logAuditAction({
+      action: "reconciliation.resolve",
+      category: "payment",
+      actor: req.user,
+      targetType: "payment",
+      targetId: String(updated._id),
+      phone: updated.phone,
+      metadata: { note },
+      req,
+    });
+
+    const detail = await getTransactionDetail(req.params.id);
+    return res.json({ success: true, data: detail, message: "Marked as reconciled" });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -417,6 +585,23 @@ export async function recordWebhookDelivery({
       payloadSummary,
       processedAt: status === "processed" ? new Date() : null,
     });
+
+    if (status === "failed") {
+      await logAuditAction({
+        action: "webhook.delivery_failed",
+        category: "webhook",
+        targetType: "webhook",
+        targetId: entityId || eventType,
+        metadata: { eventType, httpStatus, errorMessage, payloadSummary },
+      });
+
+      createNotification("webhook.delivery_failed", {
+        eventType,
+        entityId,
+        errorMessage,
+        metadata: { httpStatus, payloadSummary },
+      }).catch(() => {});
+    }
   } catch (err) {
     console.error("WEBHOOK_DELIVERY_LOG_ERROR:", err.message);
   }

@@ -10,7 +10,16 @@ import { notifyDashboardMetricsChanged } from "../utils/dashboardCache.js";
 import { processRefundWebhook, buildUserRefundSummary, formatUserPaymentRecord, syncAccessAfterRefund } from "../utils/paymentRefund.js";
 import { recordWebhookDelivery } from "./platformController.js";
 import { notifyUser } from "../utils/notifications.js";
+import { createNotification } from "../services/notificationService.js";
 dotenv.config();
+
+function secureCompare(expected, actual) {
+  if (typeof expected !== "string" || typeof actual !== "string") return false;
+  const a = Buffer.from(expected, "utf8");
+  const b = Buffer.from(actual, "utf8");
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
 
 async function fetchPaymentSummary(eventId, phone, guestCount = 0) {
   const normalized = normalizePhone(phone);
@@ -228,7 +237,7 @@ export const verifyPayment = async (req, res) => {
       .update(body)
       .digest("hex");
 
-    if (expectedSignature !== razorpay_signature) {
+    if (!secureCompare(expectedSignature, razorpay_signature)) {
       return res.status(400).json({
         success: false,
         message: "Invalid signature",
@@ -286,12 +295,20 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
-    await eventModel.updateOne(
-      { _id: payment.eventId },
-      { $inc: { registeredCount: 1 } }
-    );
-
     await notifyDashboardMetricsChanged();
+
+    const eventDoc = await eventModel.findById(updated.eventId).select("title").lean();
+    createNotification("payment.completed", {
+      eventId: String(updated.eventId),
+      eventTitle: eventDoc?.title || "Event",
+      phone: updated.phone,
+      amount: updated.amount,
+      paymentId: String(updated._id),
+      razorpayPaymentId: razorpay_payment_id,
+      orderId: razorpay_order_id,
+      entity: { type: "payment", id: String(updated._id), eventId: String(updated.eventId), phone: updated.phone },
+      alsoNotifyPassUser: { eventId: String(updated.eventId), phone: updated.phone },
+    }).catch(() => {});
 
     const summary = await fetchPaymentSummary(
       updated.eventId,
@@ -332,7 +349,7 @@ export const markPaymentFailed = async (req, res) => {
 
     const cleanPhone = normalized.string;
 
-    await Payment.updateMany(
+    const result = await Payment.updateMany(
       {
         eventId,
         phone: cleanPhone,
@@ -343,6 +360,39 @@ export const markPaymentFailed = async (req, res) => {
         failedAt: new Date(),
       }
     );
+
+    if (!result.modifiedCount) {
+      return res.status(404).json({
+        success: false,
+        message: "No pending payment found to mark as failed",
+      });
+    }
+
+    const failedPayment = await Payment.findOne({
+      eventId,
+      phone: cleanPhone,
+      status: "failed",
+    })
+      .sort({ failedAt: -1 })
+      .lean();
+
+    if (failedPayment) {
+      const eventDoc = await eventModel.findById(eventId).select("title").lean();
+      createNotification("payment.failed", {
+        eventId: String(eventId),
+        eventTitle: eventDoc?.title || "Event",
+        phone: cleanPhone,
+        paymentId: String(failedPayment._id),
+        orderId: failedPayment.razorpay_order_id,
+        reason: "Payment cancelled or failed",
+        entity: {
+          type: "payment",
+          id: String(failedPayment._id),
+          eventId: String(eventId),
+          phone: cleanPhone,
+        },
+      }).catch(() => {});
+    }
 
     return res.json({
       success: true,
@@ -439,8 +489,10 @@ export const getPaymentStatus = async (req, res) => {
 
 export const razorpayWebhook = async (req, res) => {
   try {
-    const webhookSecret =
-      process.env.RAZORPAY_WEBHOOK_SECRET || process.env.RAZORPAY_KEY_SECRET;
+    const isProd = process.env.NODE_ENV === "production";
+    const webhookSecret = isProd
+      ? process.env.RAZORPAY_WEBHOOK_SECRET
+      : process.env.RAZORPAY_WEBHOOK_SECRET || process.env.RAZORPAY_KEY_SECRET;
 
     if (!webhookSecret) {
       return res.status(500).json({ success: false, message: "Webhook secret missing" });
@@ -460,7 +512,7 @@ export const razorpayWebhook = async (req, res) => {
       .update(rawBody)
       .digest("hex");
 
-    if (expectedSignature !== signature) {
+    if (!secureCompare(expectedSignature, signature)) {
       return res.status(400).json({ success: false, message: "Invalid webhook signature" });
     }
 
@@ -498,10 +550,6 @@ export const razorpayWebhook = async (req, res) => {
       );
 
       if (updated) {
-        await eventModel.updateOne(
-          { _id: payment.eventId },
-          { $inc: { registeredCount: 1 } }
-        );
         await notifyDashboardMetricsChanged();
 
         const eventDoc = await eventModel.findById(payment.eventId).select("title").lean();
@@ -510,6 +558,23 @@ export const razorpayWebhook = async (req, res) => {
           eventTitle: eventDoc?.title || "Event",
           template: "payment_success",
           message: `Payment of INR ${payment.amount} received for ${eventDoc?.title || "your event registration"}.`,
+        }).catch(() => {});
+
+        createNotification("payment.completed", {
+          eventId: String(payment.eventId),
+          eventTitle: eventDoc?.title || "Event",
+          phone: payment.phone,
+          amount: payment.amount,
+          paymentId: String(payment._id),
+          razorpayPaymentId: paymentId,
+          orderId,
+          entity: {
+            type: "payment",
+            id: String(payment._id),
+            eventId: String(payment.eventId),
+            phone: payment.phone,
+          },
+          alsoNotifyPassUser: { eventId: String(payment.eventId), phone: payment.phone },
         }).catch(() => {});
       }
 
@@ -545,6 +610,22 @@ export const razorpayWebhook = async (req, res) => {
         if (changed) {
           await syncAccessAfterRefund(payment.eventId, payment.phone);
           await notifyDashboardMetricsChanged();
+
+          const eventDoc = await eventModel.findById(payment.eventId).select("title").lean();
+          createNotification("refund.processed", {
+            eventId: String(payment.eventId),
+            eventTitle: eventDoc?.title || "Event",
+            phone: payment.phone,
+            amount: Number(refundEntity.amount || 0) / 100,
+            paymentId: String(payment._id),
+            entity: {
+              type: "payment",
+              id: String(payment._id),
+              eventId: String(payment.eventId),
+              phone: payment.phone,
+            },
+            alsoNotifyPassUser: { eventId: String(payment.eventId), phone: payment.phone },
+          }).catch(() => {});
         }
 
         await recordWebhookDelivery({

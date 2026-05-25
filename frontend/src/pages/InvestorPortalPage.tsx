@@ -8,8 +8,9 @@ import UserRefundStatusBanner from "../components/userRegistration/UserRefundSta
 import BlockedAccessBanner from "../components/userRegistration/BlockedAccessBanner";
 import { useAppDispatch, useAppSelector } from "../hooks/hooks";
 import { GetOneEventById, checkInvestorPaymentStatus } from "../redux/EventThunks";
-import { checkInvestor } from "../redux/Thunks/EventRegistorThunk";
+import { checkInvestor, registerEvent } from "../redux/Thunks/EventRegistorThunk";
 import { setPaymentRequirement } from "../redux/paymentSlice";
+import { storePassSessionToken } from "../utils/authRole";
 import { calculateRegistrationTotal } from "../utils/pricing";
 
 export default function InvestorPortalPage() {
@@ -40,11 +41,24 @@ export default function InvestorPortalPage() {
     if (!eventId || !phone.trim()) return;
     setLoading(true);
     try {
-      const investorRes = await dispatch(
+      let investorRes = await dispatch(
         checkInvestor({ phone: phone.trim(), eventId })
       ).unwrap();
 
-      const guestCount = investorRes?.registration?.participants?.length ?? 0;
+      if (investorRes?.registered && !investorRes?.passVerified) {
+        investorRes = await dispatch(
+          registerEvent({ phone: phone.trim(), eventId, guests: [] })
+        ).unwrap();
+      }
+
+      if (investorRes?.passSessionToken && eventId) {
+        storePassSessionToken(eventId, phone.trim(), investorRes.passSessionToken);
+      }
+
+      const guestCount =
+        investorRes?.registration?.participants?.length ??
+        investorRes?.registration?.participantCount ??
+        0;
       const paymentRes = await dispatch(
         checkInvestorPaymentStatus({ eventId, phone: phone.trim() })
       ).unwrap();

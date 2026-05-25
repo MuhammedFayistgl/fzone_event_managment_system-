@@ -1424,12 +1424,31 @@ body {
 
 /* RSuite dark harmony */
 [data-theme="dark"] .rs-input,
-[data-theme="dark"] .rs-input-group,
-[data-theme="dark"] .rs-picker-toggle,
-[data-theme="dark"] .rs-picker-toggle-value {
+[data-theme="dark"] .rs-input-group {
   background: var(--color-bg-input) !important;
   border-color: var(--color-border) !important;
   color: var(--color-text-primary) !important;
+}
+
+[data-theme="dark"] .rs-picker-toggle {
+  background-color: #1a1d24 !important;
+  background: #1a1d24 !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  color: var(--color-text-primary) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+[data-theme="dark"] .rs-picker-toggle-value {
+  color: var(--color-text-primary) !important;
+}
+
+[data-theme="dark"] .rs-picker-toggle-placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+[data-theme="dark"] .rs-picker-toggle-caret {
+  color: var(--color-text-muted) !important;
 }
 
 [data-theme="dark"] .rs-input-group:focus-within,
@@ -1517,9 +1536,336 @@ body {
 [data-theme="dark"] .rs-picker-popup,
 [data-theme="dark"] .rs-picker-select-menu,
 [data-theme="dark"] .rs-calendar {
-  background-color: var(--color-bg-elevated) !important;
+  background-color: #1a1d24 !important;
+  background: #1a1d24 !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55) !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* RSuite SelectPicker — light theme + portaled menu items */
+[data-theme="light"] .rs-picker-toggle {
+  background-color: #ffffff !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+[data-theme="light"] .rs-picker-toggle-value {
+  color: var(--color-text-primary) !important;
+}
+
+[data-theme="light"] .rs-picker-toggle-placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+[data-theme="light"] .rs-picker-toggle-caret {
+  color: var(--color-text-muted) !important;
+}
+
+[data-theme="light"] .rs-picker-popup,
+[data-theme="light"] .rs-picker-select-menu {
+  background-color: #ffffff !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid var(--color-border-strong) !important;
+  box-shadow: var(--color-shadow-card) !important;
+}
+
+[data-theme="light"] .rs-picker-select-menu-item,
+[data-theme="dark"] .rs-picker-select-menu-item {
+  color: var(--color-text-primary) !important;
+}
+
+[data-theme="light"] .rs-picker-select-menu-item:hover,
+[data-theme="light"] .rs-picker-select-menu-item:focus,
+[data-theme="dark"] .rs-picker-select-menu-item:hover,
+[data-theme="dark"] .rs-picker-select-menu-item:focus {
+  background-color: var(--color-card-hover) !important;
+  color: var(--color-text-primary) !important;
+}
+
+[data-theme="light"] .rs-picker-select-menu-item-active {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+  color: var(--color-accent-primary) !important;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .rs-picker-select-menu-item-active {
+  background-color: rgba(34, 211, 238, 0.14) !important;
+  color: var(--color-accent-cyan) !important;
+  font-weight: 600;
+}
+
+[data-theme="light"] .rs-picker-search-bar .rs-input,
+[data-theme="dark"] .rs-picker-search-bar .rs-input {
+  background: var(--color-bg-input) !important;
   color: var(--color-text-primary) !important;
   border-color: var(--color-border) !important;
+}
+
+[data-theme="light"] .rs-picker-search-bar .rs-input::placeholder,
+[data-theme="dark"] .rs-picker-search-bar .rs-input::placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+[data-theme="dark"] .rs-picker-select-menu-item-disabled,
+[data-theme="light"] .rs-picker-select-menu-item-disabled {
+  color: var(--color-text-muted) !important;
+  opacity: 0.65;
+}
+
+.pro-picker-menu.rs-picker-select-menu,
+.pro-picker-menu.rs-picker-popup {
+  z-index: 1200 !important;
+}
+
+/* RSuite v6 picker popup — solid panel (portaled to body, must be global + high z-index) */
+html[data-theme="dark"] .rs-picker-popup,
+html[data-theme="dark"] .rs-picker-popup.rs-picker-select-menu,
+html[data-theme="dark"] .pro-picker-menu {
+  background-color: #1a1d24 !important;
+  background: #1a1d24 !important;
+  color: #f4f4f5 !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55) !important;
+  z-index: 9999 !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-theme="light"] .rs-picker-popup,
+html[data-theme="light"] .rs-picker-popup.rs-picker-select-menu,
+html[data-theme="light"] .pro-picker-menu {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  color: #1f2937 !important;
+  border: 1px solid #d1d5db !important;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12) !important;
+  z-index: 9999 !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="dark"] .rs-picker-popup .rs-search-box,
+html[data-theme="light"] .rs-picker-popup .rs-search-box {
+  padding: 0.5rem 0.75rem !important;
+  border-bottom: 1px solid var(--color-border);
+  background-color: inherit !important;
+  background: inherit !important;
+}
+
+html[data-theme="dark"] .rs-picker-popup .rs-search-box .rs-input,
+html[data-theme="light"] .rs-picker-popup .rs-search-box .rs-input {
+  background-color: #22262f !important;
+  background: #22262f !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 0.5rem !important;
+}
+
+html[data-theme="light"] .rs-picker-popup .rs-search-box .rs-input {
+  background-color: #f9fafb !important;
+  background: #f9fafb !important;
+}
+
+html[data-theme="dark"] .rs-picker-popup .rs-picker-select-menu-item,
+html[data-theme="light"] .rs-picker-popup .rs-picker-select-menu-item {
+  color: var(--color-text-primary) !important;
+  background-color: #1a1d24 !important;
+  background: #1a1d24 !important;
+}
+
+html[data-theme="light"] .rs-picker-popup .rs-picker-select-menu-item {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+}
+
+html[data-theme="dark"] .rs-picker-popup .rs-picker-select-menu-item:hover,
+html[data-theme="dark"] .rs-picker-popup .rs-picker-select-menu-item-focus,
+html[data-theme="light"] .rs-picker-popup .rs-picker-select-menu-item:hover,
+html[data-theme="light"] .rs-picker-popup .rs-picker-select-menu-item-focus {
+  background-color: var(--color-card-hover) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html[data-theme="dark"] .rs-picker-popup .rs-picker-select-menu-item-active,
+html[data-theme="light"] .rs-picker-popup .rs-picker-select-menu-item-active {
+  background-color: rgba(34, 211, 238, 0.14) !important;
+  color: var(--color-accent-cyan) !important;
+  font-weight: 600;
+}
+
+html[data-theme="light"] .rs-picker-popup .rs-picker-select-menu-item-active {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+  color: var(--color-accent-primary) !important;
+}
+
+html[data-theme="dark"] .rs-picker-popup .rs-picker-listbox,
+html[data-theme="dark"] .rs-picker-popup .rs-picker-select-menu-items,
+html[data-theme="dark"] .rs-picker-popup .rs-virt-list,
+html[data-theme="dark"] .rs-picker-popup .rs-picker-select-menu,
+html[data-theme="light"] .rs-picker-popup .rs-picker-listbox,
+html[data-theme="light"] .rs-picker-popup .rs-picker-select-menu-items,
+html[data-theme="light"] .rs-picker-popup .rs-virt-list,
+html[data-theme="light"] .rs-picker-popup .rs-picker-select-menu {
+  background-color: #1a1d24 !important;
+  background: #1a1d24 !important;
+}
+
+html[data-theme="light"] .rs-picker-popup .rs-picker-listbox,
+html[data-theme="light"] .rs-picker-popup .rs-picker-select-menu-items,
+html[data-theme="light"] .rs-picker-popup .rs-virt-list,
+html[data-theme="light"] .rs-picker-popup .rs-picker-select-menu {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+}
+
+body.rs-theme-dark .rs-picker-popup,
+body.rs-theme-dark .rs-picker-popup .rs-picker-listbox,
+body.rs-theme-dark .rs-picker-popup .rs-picker-select-menu-items,
+body.rs-theme-dark .rs-picker-popup .rs-virt-list {
+  background-color: #1a1d24 !important;
+  background: #1a1d24 !important;
+}
+
+:root[data-theme="dark"] {
+  --rs-zindex-picker-popup: 9999;
+  --rs-bg-overlay: #1a1d24;
+  --color-bg-control-solid: #1a1d24;
+  --color-bg-overlay-solid: #1a1d24;
+}
+
+:root[data-theme="light"] {
+  --rs-zindex-picker-popup: 9999;
+  --rs-bg-overlay: #ffffff;
+  --color-bg-control-solid: #ffffff;
+  --color-bg-overlay-solid: #ffffff;
+}
+
+/* Solid portaled menus — prevents dashboard bleed-through on all dropdowns */
+html[data-theme="dark"] .rs-dropdown-menu,
+html[data-theme="dark"] .rs-popover,
+html[data-theme="dark"] .rs-popover-content,
+html[data-theme="dark"] .rs-menu {
+  background-color: #1a1d24 !important;
+  background: #1a1d24 !important;
+  color: #f4f4f5 !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55) !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-theme="dark"] .rs-modal-dialog,
+html[data-theme="dark"] .rs-modal-content {
+  background-color: #1a1d24 !important;
+  background: #1a1d24 !important;
+  color: #f4f4f5 !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-theme="dark"] .pro-picker-toggle.rs-picker-toggle {
+  background-color: #1a1d24 !important;
+  background: #1a1d24 !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+html[data-theme="light"] .pro-picker-toggle.rs-picker-toggle {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+}
+
+/* Side sheets / drawers — no page dimming; panel focus only */
+.finance-recon-sheet-backdrop {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-theme="dark"] .finance-recon-sheet-backdrop,
+html[data-theme="light"] .finance-recon-sheet-backdrop {
+  background: transparent !important;
+}
+
+html[data-theme="dark"] .rs-drawer-backdrop,
+html[data-theme="light"] .rs-drawer-backdrop {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+[data-theme="dark"] .finance-recon-sheet {
+  background-color: #1a1d24 !important;
+  background: #1a1d24 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+[data-theme="dark"] .finance-recon-sheet__header {
+  background: #1a1d24 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Side drawer — rounded floating panel (Audit, Webhooks, Reconciliation, Payments) */
+.finance-recon-sheet {
+  top: 0.75rem !important;
+  right: 0.75rem !important;
+  height: calc(100dvh - 1.5rem) !important;
+  max-height: calc(100dvh - 1.5rem) !important;
+  border-radius: 1rem !important;
+  overflow: hidden !important;
+  border: 1px solid var(--color-border-strong) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35) !important;
+}
+
+html[data-theme="dark"] .finance-recon-sheet {
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55) !important;
+}
+
+.finance-recon-sheet__header {
+  border-radius: 1rem 1rem 0 0;
+}
+
+html[data-theme="dark"] .rs-drawer-right .rs-drawer-dialog,
+html[data-theme="light"] .rs-drawer-right .rs-drawer-dialog {
+  margin: 0.75rem 0.75rem 0.75rem 0 !important;
+  width: calc(100% - 0.75rem) !important;
+  height: calc(100% - 1.5rem) !important;
+  max-height: calc(100dvh - 1.5rem) !important;
+  border-radius: 1rem !important;
+  overflow: hidden !important;
+  border: 1px solid var(--color-border-strong) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35) !important;
+}
+
+html[data-theme="dark"] .rs-drawer-right .rs-drawer-dialog {
+  background-color: #1a1d24 !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55) !important;
+}
+
+@media (max-width: 640px) {
+  .finance-recon-sheet {
+    top: 0 !important;
+    right: 0 !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 1rem 0 0 1rem !important;
+  }
+
+  html[data-theme="dark"] .rs-drawer-right .rs-drawer-dialog,
+  html[data-theme="light"] .rs-drawer-right .rs-drawer-dialog {
+    margin: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100dvh !important;
+    border-radius: 1rem 0 0 1rem !important;
+  }
 }
 
 /* SweetAlert2 dark theme */
@@ -3683,16 +4029,41 @@ body {
 }
 
 .pro-mui-picker-popper {
-  z-index: 1500 !important;
+  z-index: 9999 !important;
+}
+
+/* Solid panel — dark surface-raised token is transparent without this */
+html[data-theme="dark"] .pro-mui-picker-paper,
+html[data-theme="dark"] .pro-mui-picker-popper .MuiPaper-root,
+html[data-theme="dark"] .pro-mui-picker-popper .MuiPickersPopper-paper,
+html[data-theme="dark"] .MuiPopper-root.pro-mui-picker-popper .MuiPaper-root {
+  background-color: #151f2e !important;
+  background: #151f2e !important;
+  color: #e2e8f0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55) !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-theme="light"] .pro-mui-picker-paper,
+html[data-theme="light"] .pro-mui-picker-popper .MuiPaper-root,
+html[data-theme="light"] .pro-mui-picker-popper .MuiPickersPopper-paper,
+html[data-theme="light"] .MuiPopper-root.pro-mui-picker-popper .MuiPaper-root {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  color: #1f2937 !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12) !important;
+  opacity: 1 !important;
 }
 
 .pro-mui-picker-popper .MuiPaper-root,
 .pro-mui-picker-popper .MuiPickersPopper-paper {
-  background: var(--color-bg-surface-raised) !important;
-  border: 1px solid var(--color-border-strong) !important;
-  border-radius: 1rem !important;
   color: var(--color-text-primary) !important;
-  box-shadow: var(--color-shadow-card) !important;
 }
 
 .pro-mui-picker-popper .MuiPickersCalendarHeader-label,
@@ -3728,14 +4099,23 @@ body {
 }
 
 .pro-mui-picker-popper--schedule .MuiPaper-root,
-.pro-mui-picker-popper--schedule .MuiPickersPopper-paper {
+.pro-mui-picker-popper--schedule .MuiPickersPopper-paper,
+html[data-theme="dark"] .pro-mui-picker-paper--schedule {
   border-radius: 1.1rem !important;
+  background-color: #151f2e !important;
   background:
-    linear-gradient(180deg, rgba(34, 211, 238, 0.06) 0%, transparent 28%),
-    var(--color-bg-surface-raised) !important;
+    linear-gradient(180deg, rgba(34, 211, 238, 0.08) 0%, transparent 28%),
+    #151f2e !important;
   box-shadow:
-    0 24px 48px rgba(0, 0, 0, 0.45),
-    0 0 0 1px rgba(34, 211, 238, 0.12) !important;
+    0 24px 48px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(34, 211, 238, 0.14) !important;
+}
+
+html[data-theme="light"] .pro-mui-picker-paper--schedule {
+  background:
+    linear-gradient(180deg, rgba(8, 145, 178, 0.06) 0%, transparent 28%),
+    #ffffff !important;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.1) !important;
 }
 
 .pro-mui-picker-popper--schedule .MuiPickersCalendarHeader-root {
@@ -3772,6 +4152,18 @@ body {
 
 .pro-mui-picker-popper--schedule .MuiMultiSectionDigitalClockSection-item.Mui-selected {
   box-shadow: 0 0 16px rgba(34, 211, 238, 0.35);
+}
+
+html[data-theme="dark"] .pro-mui-picker-layout,
+html[data-theme="dark"] .pro-mui-picker-paper .MuiPickersLayout-root,
+html[data-theme="dark"] .pro-mui-picker-popper .MuiPickersLayout-root {
+  background-color: transparent !important;
+  color: #e2e8f0 !important;
+}
+
+html[data-theme="dark"] .pro-mui-picker-popper .MuiMultiSectionDigitalClockSection-root,
+html[data-theme="dark"] .pro-mui-picker-popper .MuiDateCalendar-root {
+  background-color: transparent !important;
 }
 
 .pro-mui-picker-layout .MuiDialogActions-root {
@@ -3947,10 +4339,26 @@ body {
   padding: 0.55rem 0.75rem;
   border-radius: 0.65rem;
   border: 1px solid var(--color-border-strong);
-  background: var(--color-bg-input);
+  background-color: var(--color-bg-control-solid, var(--color-bg-input));
+  background: var(--color-bg-control-solid, var(--color-bg-input));
   color: var(--color-text-primary);
   font-size: 0.875rem;
   outline: none;
+}
+
+html[data-theme="dark"] .event-register-guests__select,
+html[data-theme="dark"] select.event-register-guests__select,
+html[data-theme="dark"] select:not([multiple]) {
+  background-color: #1a1d24 !important;
+  background: #1a1d24 !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  color: #f4f4f5 !important;
+}
+
+html[data-theme="dark"] .event-register-guests__select option,
+html[data-theme="dark"] select option {
+  background-color: #1a1d24;
+  color: #f4f4f5;
 }
 
 .event-register-guests__remove-btn {

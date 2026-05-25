@@ -1,9 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import RecentRegistrationsUI from "../RecentRegistrationsUI";
 import AppPageLayout from "../../layouts/AppPageLayout";
 import API from "../../api/axios";
 import { downloadRegistrationsCsv } from "../../utils/registrationExport";
+import {
+  useHighlightMatcher,
+  useNotificationHighlightParam,
+} from "../../hooks/useNotificationHighlight";
 
 type Props = {
   mode?: "preview" | "full";
@@ -22,9 +26,32 @@ type RegistrationRow = {
 
 const RecentRegistrationsContainer: React.FC<Props> = ({ mode = "preview" }) => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<RegistrationRow[]>([]);
+  const { highlightId } = useNotificationHighlightParam();
+  const isHighlighted = useHighlightMatcher(highlightId);
+
+  useEffect(() => {
+    if (!highlightId || !rows.length || mode !== "full") return;
+    const match = rows.find((row) => isHighlighted(row));
+    if (!match) return;
+    const timer = window.setTimeout(() => {
+      document.getElementById(`reg-row-${match.id}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [highlightId, rows, isHighlighted, mode]);
+
+  useEffect(() => {
+    const urlSearch = searchParams.get("search")?.trim();
+    if (urlSearch && mode === "full") {
+      setSearch(urlSearch);
+    }
+  }, [mode, searchParams]);
 
   useEffect(() => {
     setLoading(true);
@@ -57,6 +84,7 @@ const RecentRegistrationsContainer: React.FC<Props> = ({ mode = "preview" }) => 
       search={search}
       setSearch={setSearch}
       onExport={mode === "full" ? handleExport : undefined}
+      isHighlighted={mode === "full" ? isHighlighted : undefined}
     />
   );
 

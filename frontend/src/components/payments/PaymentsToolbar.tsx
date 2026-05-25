@@ -70,6 +70,7 @@ export default function PaymentsToolbar({
               block
               cleanable={false}
               searchable
+              popupClassName="pro-picker-menu"
             />
           </div>
           <div className="min-w-[160px]">
@@ -79,6 +80,8 @@ export default function PaymentsToolbar({
               onChange={(val) => onDateRangeChange((val as PaymentDateRange) || "all")}
               block
               cleanable={false}
+              searchable={false}
+              popupClassName="pro-picker-menu"
             />
           </div>
           <div className="flex-1 min-w-[220px]">

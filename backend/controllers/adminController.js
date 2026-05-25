@@ -1,4 +1,4 @@
-import redisClient from "../config/redis.js";
+import { redisGet, redisSetEx } from "../config/redis.js";
 import investorsModal from "../models/Investor.js";
 import mongoose from "mongoose";
 import eventModel from "../models/eventModel.js";
@@ -15,9 +15,17 @@ import {
     buildRegistrationGenderBreakdown,
     aggregateGuestGenderFromPipeline,
     guestCountsFromAgg,
+    normalizeGender,
+    resolveInvestorGender,
 } from "../utils/gender.js";
+import {
+    findInvestorDuplicate,
+    parseInvestorObjectId,
+    prepareInvestorCreateInput,
+    prepareInvestorUpdateInput,
+} from "../utils/investorCrud.js";
 import { emitRegistrationBlocked } from "../live/liveHub.js";
-import { clearDashboardCache, notifyDashboardMetricsChanged } from "../utils/dashboardCache.js";
+import { clearDashboardCache, clearInvestorListCache, notifyDashboardMetricsChanged } from "../utils/dashboardCache.js";
 import razorpay, { isRazorpayConfigured } from "../utils/razorpayClient.js";
 import {
     REFUND_REASONS,
@@ -30,67 +38,43 @@ import {
 } from "../utils/paymentRefund.js";
 import { logAuditAction } from "../utils/auditLog.js";
 import { notifyUser } from "../utils/notifications.js";
+import { createNotification } from "../services/notificationService.js";
+import { withLock } from "../utils/distributedLock.js";
 
 
 
-// 🔹 COMMON CACHE CLEAR FUNCTION
 const clearInvestorCache = async () => {
-    try {
-        const keys = await redisClient.keys("investors:*");
-        if (keys.length > 0) {
-            await redisClient.del(keys);
-        }
-        await clearDashboardCache();
-    } catch (err) {
-        console.log("Redis clear error:", err);
-    }
-};
-
-const VALID_GENDERS = ["Male", "Female", "Other"];
-
-const normalizeGender = (gender) => {
-    if (!gender || typeof gender !== "string") return null;
-    const trimmed = gender.trim();
-    const match = VALID_GENDERS.find(
-        (g) => g.toLowerCase() === trimmed.toLowerCase()
-    );
-    return match || null;
+    await clearInvestorListCache();
 };
 
 // 🔹 CREATE INVESTOR
 export const uploadInvestorDetails = async (req, res) => {
     try {
-        let { Code_No, Name, Phone_No, Gender } = req.body;
-
-        // ✅ FORMAT
-        Code_No = Code_No?.trim().toUpperCase();
-        Phone_No = Phone_No?.toString().trim();
-        Gender = normalizeGender(Gender);
-
-        if (!Code_No || !Name || !Phone_No || !Gender) {
+        const prepared = prepareInvestorCreateInput(req.body);
+        if (!prepared.ok) {
             return res.status(400).json({
                 status: false,
-                message: "All fields are required (Code, Name, Phone, Gender)",
+                message: prepared.message,
             });
         }
 
-        // 🔴 DUPLICATE CHECK
-        const existing = await investorsModal.findOne({
-            $or: [{ Code_No }, { Phone_No }],
-        });
+        const { fields, genderResolution } = prepared;
 
-        if (existing) {
-            return res.status(400).json({
+        const duplicate = await findInvestorDuplicate(investorsModal, {
+            code: fields.Code_No,
+            phoneNumber: fields.Phone_No,
+        });
+        if (duplicate) {
+            return res.status(409).json({
                 status: false,
-                message: "Code or Phone already exists",
+                message: duplicate.message,
+                field: duplicate.field,
             });
         }
 
         let newInvestor;
 
-        // 🔁 retry logic (max 3 times)
         for (let i = 0; i < 3; i++) {
-
             const lastInvestor = await investorsModal
                 .findOne()
                 .sort({ No: -1 })
@@ -101,14 +85,10 @@ export const uploadInvestorDetails = async (req, res) => {
             try {
                 newInvestor = await investorsModal.create({
                     No: nextNo,
-                    Code_No,
-                    Name,
-                    Phone_No,
-                    Gender,
+                    ...fields,
                 });
-                break; // success
+                break;
             } catch (err) {
-                // duplicate No വന്നാൽ retry
                 if (err.code === 11000) continue;
                 throw err;
             }
@@ -121,15 +101,14 @@ export const uploadInvestorDetails = async (req, res) => {
             });
         }
 
-        // 🔥 CLEAR CACHE
         await clearInvestorCache();
 
-        res.json({
+        res.status(201).json({
             status: true,
             message: "Investor added successfully",
             data: newInvestor,
+            genderCorrected: genderResolution.corrected,
         });
-
     } catch (error) {
         console.log(error);
         res.status(500).json({
@@ -158,7 +137,7 @@ export const fetchInvestorData = async (req, res) => {
         const cacheKey = `investors:${page}:${limit}:${search}:${sortBy}:${sortOrder}:${gender}`;
 
         // ✅ CACHE CHECK
-        const cachedData = await redisClient.get(cacheKey);
+        const cachedData = await redisGet(cacheKey);
         if (cachedData) {
             console.log("⚡ From Redis");
             return res.json(JSON.parse(cachedData));
@@ -190,7 +169,7 @@ export const fetchInvestorData = async (req, res) => {
         const result = { data, total };
 
         // ✅ CACHE SAVE
-        await redisClient.setEx(cacheKey, 60, JSON.stringify(result));
+        await redisSetEx(cacheKey, 60, JSON.stringify(result));
 
         console.log("📦 From DB");
 
@@ -211,7 +190,7 @@ export const getDashboardSummary = async (req, res) => {
     try {
         const cacheKey = "dashboard:summary:v5";
 
-        const cachedData = await redisClient.get(cacheKey);
+        const cachedData = await redisGet(cacheKey);
 
         if (cachedData) {
             console.log("⚡ Dashboard Cache");
@@ -348,7 +327,7 @@ export const getDashboardSummary = async (req, res) => {
             subMembers: guestPasses,
         };
 
-        await redisClient.setEx(cacheKey, 120, JSON.stringify(result));
+        await redisSetEx(cacheKey, 120, JSON.stringify(result));
 
         res.json(result);
 
@@ -364,39 +343,49 @@ export const getDashboardSummary = async (req, res) => {
 // 🔹 UPDATE INVESTOR
 export const updateInvestor = async (req, res) => {
     try {
-        const { id } = req.params;
-        let { Code_No, Phone_No, Name, Gender } = req.body;
-
-        // ✅ FORMAT
-        Code_No = Code_No?.trim().toUpperCase();
-        Phone_No = Phone_No?.toString().trim();
-        Gender = normalizeGender(Gender);
-
-        if (!Code_No || !Name || !Phone_No || !Gender) {
+        const investorId = parseInvestorObjectId(req.params.id);
+        if (!investorId) {
             return res.status(400).json({
                 status: false,
-                message: "All fields are required (Code, Name, Phone, Gender)",
+                message: "Invalid investor ID",
             });
         }
 
-        // 🔴 DUPLICATE CHECK
-        const existing = await investorsModal.findOne({
-            _id: { $ne: id },
-            $or: [{ Code_No }, { Phone_No }],
-        });
-
-        if (existing) {
+        const prepared = prepareInvestorUpdateInput(req.body);
+        if (!prepared.ok) {
             return res.status(400).json({
                 status: false,
-                message: "Code or Phone already exists",
+                message: prepared.message,
+            });
+        }
+
+        const { fields } = prepared;
+
+        const duplicate = await findInvestorDuplicate(investorsModal, {
+            code: fields.Code_No,
+            phoneNumber: fields.Phone_No,
+            excludeId: investorId,
+        });
+        if (duplicate) {
+            return res.status(409).json({
+                status: false,
+                message: duplicate.message,
+                field: duplicate.field,
             });
         }
 
         const updated = await investorsModal.findByIdAndUpdate(
-            id,
-            { Code_No, Phone_No, Name, Gender },
-            { new: true }
+            investorId,
+            fields,
+            { returnDocument: "after", runValidators: true }
         );
+
+        if (!updated) {
+            return res.status(404).json({
+                status: false,
+                message: "Investor not found",
+            });
+        }
 
         await clearInvestorCache();
 
@@ -405,7 +394,56 @@ export const updateInvestor = async (req, res) => {
             message: "Updated successfully",
             data: updated,
         });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            status: false,
+            message: "Server error",
+        });
+    }
+};
 
+// 🔹 FIX INVESTOR GENDERS FROM NAMES (batch — does not touch auth/OAuth)
+export const fixInvestorGendersFromNames = async (req, res) => {
+    try {
+        const dryRun = req.body?.dryRun !== false && req.query?.dryRun !== "false";
+        const investors = await investorsModal.find().select("_id Name Gender Code_No").lean();
+
+        const changes = [];
+        for (const row of investors) {
+            const resolution = resolveInvestorGender(row.Name, row.Gender);
+            if (resolution.gender !== row.Gender) {
+                changes.push({
+                    id: row._id,
+                    code: row.Code_No,
+                    from: row.Gender,
+                    to: resolution.gender,
+                    matchReason: resolution.matchReason,
+                });
+            }
+        }
+
+        if (!dryRun && changes.length > 0) {
+            const bulk = changes.map((c) => ({
+                updateOne: {
+                    filter: { _id: c.id },
+                    update: { $set: { Gender: c.to } },
+                },
+            }));
+            await investorsModal.bulkWrite(bulk);
+            await clearInvestorCache();
+        }
+
+        res.json({
+            status: true,
+            dryRun,
+            total: investors.length,
+            changes: changes.length,
+            preview: changes.slice(0, 50),
+            message: dryRun
+                ? `Dry run: ${changes.length} investor(s) would be updated`
+                : `Updated ${changes.length} investor gender(s) from name`,
+        });
     } catch (error) {
         console.log(error);
         res.status(500).json({
@@ -418,9 +456,21 @@ export const updateInvestor = async (req, res) => {
 // 🔹 DELETE INVESTOR
 export const deleteInvestor = async (req, res) => {
     try {
-        const { id } = req.params;
+        const investorId = parseInvestorObjectId(req.params.id);
+        if (!investorId) {
+            return res.status(400).json({
+                status: false,
+                message: "Invalid investor ID",
+            });
+        }
 
-        await investorsModal.findByIdAndDelete(id);
+        const deleted = await investorsModal.findByIdAndDelete(investorId);
+        if (!deleted) {
+            return res.status(404).json({
+                status: false,
+                message: "Investor not found",
+            });
+        }
 
         await clearInvestorCache();
 
@@ -428,7 +478,6 @@ export const deleteInvestor = async (req, res) => {
             status: true,
             message: "Deleted successfully",
         });
-
     } catch (error) {
         console.log(error);
         res.status(500).json({
@@ -975,6 +1024,181 @@ function summarizePayments(rows = []) {
     };
 }
 
+async function summarizePaymentsAggregation(query) {
+    const [result] = await Payment.aggregate([
+        { $match: query },
+        {
+            $addFields: {
+                amountNum: { $toDouble: { $ifNull: ["$amount", 0] } },
+                processedRefund: {
+                    $cond: {
+                        if: { $gt: [{ $size: { $ifNull: ["$refunds", []] } }, 0] },
+                        then: {
+                            $sum: {
+                                $map: {
+                                    input: {
+                                        $filter: {
+                                            input: { $ifNull: ["$refunds", []] },
+                                            as: "ref",
+                                            cond: { $eq: ["$$ref.status", "processed"] },
+                                        },
+                                    },
+                                    as: "ref",
+                                    in: { $toDouble: { $ifNull: ["$$ref.amount", 0] } },
+                                },
+                            },
+                        },
+                        else: {
+                            $cond: {
+                                if: { $eq: ["$status", "refunded"] },
+                                then: {
+                                    $toDouble: {
+                                        $ifNull: ["$refundAmount", { $ifNull: ["$amount", 0] }],
+                                    },
+                                },
+                                else: 0,
+                            },
+                        },
+                    },
+                },
+                activeRefund: {
+                    $cond: {
+                        if: { $gt: [{ $size: { $ifNull: ["$refunds", []] } }, 0] },
+                        then: {
+                            $sum: {
+                                $map: {
+                                    input: {
+                                        $filter: {
+                                            input: { $ifNull: ["$refunds", []] },
+                                            as: "ref",
+                                            cond: { $ne: ["$$ref.status", "failed"] },
+                                        },
+                                    },
+                                    as: "ref",
+                                    in: { $toDouble: { $ifNull: ["$$ref.amount", 0] } },
+                                },
+                            },
+                        },
+                        else: { $toDouble: { $ifNull: ["$refundAmount", 0] } },
+                    },
+                },
+            },
+        },
+        {
+            $group: {
+                _id: null,
+                totalRevenue: {
+                    $sum: {
+                        $switch: {
+                            branches: [
+                                {
+                                    case: { $eq: ["$status", "success"] },
+                                    then: { $max: [0, { $subtract: ["$amountNum", "$processedRefund"] }] },
+                                },
+                                {
+                                    case: { $eq: ["$status", "refunded"] },
+                                    then: {
+                                        $max: [
+                                            0,
+                                            {
+                                                $subtract: [
+                                                    "$amountNum",
+                                                    {
+                                                        $cond: {
+                                                            if: { $gt: ["$processedRefund", 0] },
+                                                            then: "$processedRefund",
+                                                            else: {
+                                                                $cond: {
+                                                                    if: { $gt: ["$activeRefund", 0] },
+                                                                    then: "$activeRefund",
+                                                                    else: "$amountNum",
+                                                                },
+                                                            },
+                                                        },
+                                                    },
+                                                ],
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
+                            default: 0,
+                        },
+                    },
+                },
+                successfulCount: {
+                    $sum: { $cond: [{ $eq: ["$status", "success"] }, 1, 0] },
+                },
+                failedCount: {
+                    $sum: { $cond: [{ $eq: ["$status", "failed"] }, 1, 0] },
+                },
+                pendingCount: {
+                    $sum: { $cond: [{ $eq: ["$status", "created"] }, 1, 0] },
+                },
+                refundedCount: {
+                    $sum: {
+                        $cond: [
+                            {
+                                $or: [
+                                    { $eq: ["$status", "refunded"] },
+                                    {
+                                        $and: [
+                                            { $eq: ["$status", "success"] },
+                                            { $gt: ["$processedRefund", 0] },
+                                        ],
+                                    },
+                                ],
+                            },
+                            1,
+                            0,
+                        ],
+                    },
+                },
+                refundedAmount: {
+                    $sum: {
+                        $switch: {
+                            branches: [
+                                {
+                                    case: { $eq: ["$status", "success"] },
+                                    then: "$processedRefund",
+                                },
+                                {
+                                    case: { $eq: ["$status", "refunded"] },
+                                    then: {
+                                        $cond: {
+                                            if: { $gt: ["$processedRefund", 0] },
+                                            then: "$processedRefund",
+                                            else: {
+                                                $cond: {
+                                                    if: { $gt: ["$activeRefund", 0] },
+                                                    then: "$activeRefund",
+                                                    else: "$amountNum",
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            ],
+                            default: 0,
+                        },
+                    },
+                },
+            },
+        },
+    ]);
+
+    return (
+        result || {
+            totalRevenue: 0,
+            successfulCount: 0,
+            failedCount: 0,
+            pendingCount: 0,
+            refundedCount: 0,
+            refundedAmount: 0,
+        }
+    );
+}
+
 function formatPaymentLedgerRow(payment, investor = null) {
     const eventDoc = payment.eventId;
     const eventIsRefundable = Boolean(eventDoc?.isRefundable);
@@ -1032,10 +1256,8 @@ export const paymentLedger = async (req, res) => {
         const { query: baseQuery, search } = buildPaymentLedgerQuery(req.body);
         const query = await applyPaymentSearch(baseQuery, search);
 
-        const [statsRows, total, payments] = await Promise.all([
-            Payment.find(query)
-                .select("amount status refundAmount refunds")
-                .lean(),
+        const [statistics, total, payments] = await Promise.all([
+            summarizePaymentsAggregation(query),
             Payment.countDocuments(query),
             Payment.find(query)
                 .populate("eventId", "title startTime endTime isRefundable")
@@ -1045,7 +1267,6 @@ export const paymentLedger = async (req, res) => {
                 .lean(),
         ]);
 
-        const statistics = summarizePayments(statsRows);
         const investorByPhone = await buildInvestorLookupByPhone(
             payments.map((item) => item.phone)
         );
@@ -1163,38 +1384,97 @@ export const issuePaymentRefund = async (req, res) => {
             });
         }
 
-        const razorpayRefund = await razorpay.payments.refund(
-            payment.razorpay_payment_id,
-            {
-                amount: Math.round(refundAmount * 100),
-                notes: {
-                    reason,
-                    note: String(note || "").trim(),
-                    paymentMongoId: payment._id.toString(),
-                },
-            }
-        );
+        let refundResult;
+        try {
+            refundResult = await withLock(`refund:${paymentId}`, 60_000, async () => {
+                const freshPayment = await Payment.findById(paymentId);
+                if (!freshPayment || freshPayment.status !== "success") {
+                    const err = new Error("Payment is not refundable");
+                    err.status = 400;
+                    throw err;
+                }
 
-        const adminId = req.user?.id || req.user?._id || null;
-        const refundStatus = String(razorpayRefund?.status || "pending").toLowerCase();
-        const { payment: updated, applied } = await applyRefundToPayment(payment, {
-            refundId: razorpayRefund.id,
-            amount: refundAmount,
-            reason,
-            note,
-            refundedBy: adminId,
-            status: refundStatus,
-            razorpayReceipt: razorpayRefund?.receipt || "",
-            speedRequested: razorpayRefund?.speed_requested || "",
-            speedProcessed: razorpayRefund?.speed_processed || "",
-            initiatedAt: razorpayRefund?.created_at
-                ? new Date(Number(razorpayRefund.created_at) * 1000)
-                : new Date(),
-            processedAt:
-                refundStatus === "processed"
-                    ? new Date()
-                    : null,
-        });
+                const remainingFresh = getRefundableRemaining(freshPayment);
+                if (remainingFresh <= 0) {
+                    const err = new Error("Payment is already fully refunded");
+                    err.status = 400;
+                    throw err;
+                }
+
+                const amountToRefund =
+                    amount != null && amount !== "" ? Number(amount) : remainingFresh;
+
+                if (!Number.isFinite(amountToRefund) || amountToRefund <= 0) {
+                    const err = new Error("Invalid refund amount");
+                    err.status = 400;
+                    throw err;
+                }
+
+                if (amountToRefund > remainingFresh + 0.001) {
+                    const err = new Error(`Maximum refundable amount is ${remainingFresh}`);
+                    err.status = 400;
+                    throw err;
+                }
+
+                const razorpayRefund = await razorpay.payments.refund(
+                    freshPayment.razorpay_payment_id,
+                    {
+                        amount: Math.round(amountToRefund * 100),
+                        notes: {
+                            reason,
+                            note: String(note || "").trim(),
+                            paymentMongoId: freshPayment._id.toString(),
+                        },
+                    }
+                );
+
+                const adminId = req.user?.id || req.user?._id || null;
+                const refundStatus = String(razorpayRefund?.status || "pending").toLowerCase();
+                const { payment: updated, applied } = await applyRefundToPayment(freshPayment, {
+                    refundId: razorpayRefund.id,
+                    amount: amountToRefund,
+                    reason,
+                    note,
+                    refundedBy: adminId,
+                    status: refundStatus,
+                    razorpayReceipt: razorpayRefund?.receipt || "",
+                    speedRequested: razorpayRefund?.speed_requested || "",
+                    speedProcessed: razorpayRefund?.speed_processed || "",
+                    initiatedAt: razorpayRefund?.created_at
+                        ? new Date(Number(razorpayRefund.created_at) * 1000)
+                        : new Date(),
+                    processedAt:
+                        refundStatus === "processed"
+                            ? new Date()
+                            : null,
+                });
+
+                return {
+                    updated,
+                    applied,
+                    refundAmount: amountToRefund,
+                    refundStatus,
+                    razorpayRefund,
+                };
+            });
+        } catch (lockErr) {
+            if (lockErr.code === "LOCK_BUSY") {
+                return res.status(409).json({
+                    success: false,
+                    message: lockErr.message,
+                });
+            }
+            if (lockErr.status) {
+                return res.status(lockErr.status).json({
+                    success: false,
+                    message: lockErr.message,
+                });
+            }
+            throw lockErr;
+        }
+
+        const { payment: updated, applied, refundAmount: finalRefundAmount, refundStatus } =
+            refundResult;
 
         if (!applied) {
             return res.status(409).json({
@@ -1225,7 +1505,7 @@ export const issuePaymentRefund = async (req, res) => {
             eventId: payment.eventId,
             phone: payment.phone,
             metadata: {
-                amount: refundAmount,
+                amount: finalRefundAmount,
                 reason,
                 note,
                 accessImpact,
@@ -1237,7 +1517,23 @@ export const issuePaymentRefund = async (req, res) => {
             phone: payment.phone,
             eventTitle: event?.title || "Event",
             template: "refund_processed",
-            message: `A refund of INR ${refundAmount} has been initiated for your ${event?.title || "event"} registration.`,
+            message: `A refund of INR ${finalRefundAmount} has been initiated for your ${event?.title || "Event"} registration.`,
+        }).catch(() => {});
+
+        createNotification("refund.initiated", {
+            eventId: String(payment.eventId),
+            eventTitle: event?.title || "Event",
+            phone: payment.phone,
+            amount: finalRefundAmount,
+            paymentId: String(payment._id),
+            entity: {
+                type: "payment",
+                id: String(payment._id),
+                eventId: String(payment.eventId),
+                phone: payment.phone,
+            },
+            alsoNotifyPassUser: { eventId: String(payment.eventId), phone: payment.phone },
+            sender: req.user,
         }).catch(() => {});
 
         await notifyDashboardMetricsChanged();
@@ -1411,6 +1707,22 @@ export const blockRegistrationParticipant = async (req, res) => {
             isBlocked: blocked,
             blockedReason: reasonText,
         });
+
+        if (blocked) {
+            createNotification("registration.blocked", {
+                eventId: String(registration.eventId),
+                phone: registration.phone,
+                registrationId: String(registration._id),
+                blockedReason: reasonText,
+                entity: {
+                    type: "registration",
+                    id: String(registration._id),
+                    eventId: String(registration.eventId),
+                    phone: registration.phone,
+                },
+                sender: req.user,
+            }).catch(() => {});
+        }
 
         return res.status(200).json({
             success: true,

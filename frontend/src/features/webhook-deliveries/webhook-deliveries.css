@@ -1,0 +1,219 @@
+/* Webhook Deliveries — scoped theme-aware styles */
+
+.platform-sort-th {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.platform-sort-th:hover {
+  color: var(--color-accent, #6366f1);
+}
+
+.webhook-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.webhook-badge--processed {
+  background: rgba(34, 197, 94, 0.14);
+  color: #16a34a;
+}
+
+.webhook-badge--failed {
+  background: rgba(239, 68, 68, 0.14);
+  color: #dc2626;
+}
+
+.webhook-badge--ignored {
+  background: rgba(100, 116, 139, 0.16);
+  color: #64748b;
+}
+
+.webhook-badge--received {
+  background: rgba(245, 158, 11, 0.14);
+  color: #d97706;
+}
+
+.webhook-badge--event {
+  background: rgba(59, 130, 246, 0.14);
+  color: #2563eb;
+}
+
+[data-theme="dark"] .webhook-badge--processed { color: #4ade80; }
+[data-theme="dark"] .webhook-badge--failed { color: #f87171; }
+[data-theme="dark"] .webhook-badge--received { color: #fbbf24; }
+[data-theme="dark"] .webhook-badge--event { color: #60a5fa; }
+
+.webhook-table-wrap {
+  overflow-x: auto;
+}
+
+.webhook-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.webhook-table th,
+.webhook-table td {
+  padding: 0.85rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.875rem;
+  color: var(--color-text-primary);
+}
+
+.webhook-table th {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  background: var(--color-bg-surface-muted);
+}
+
+.webhook-table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.webhook-table tbody tr:hover {
+  background: var(--color-card-hover);
+}
+
+.webhook-mobile-card {
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.webhook-mobile-card:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-card-hover);
+}
+
+.webhook-chart-card {
+  min-height: 260px;
+  padding: 1rem;
+  border-radius: 1.25rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+  box-shadow: var(--color-shadow-card);
+}
+
+[data-theme="dark"] .webhook-chart-card {
+  backdrop-filter: var(--blur-surface);
+  -webkit-backdrop-filter: var(--blur-surface);
+}
+
+.webhook-code-block {
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-surface-muted);
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  overflow: auto;
+  max-height: 12rem;
+}
+
+.webhook-detail-hero {
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-surface-muted);
+}
+
+.webhook-skeleton {
+  border-radius: 0.65rem;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-surface-muted) 25%,
+    var(--color-bg-surface-raised) 50%,
+    var(--color-bg-surface-muted) 75%
+  );
+  background-size: 200% 100%;
+  animation: webhook-shimmer 1.2s infinite;
+}
+
+@keyframes webhook-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.finance-recon-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+[data-theme="dark"] .finance-recon-sheet-backdrop {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.finance-recon-sheet {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 70;
+  height: 100%;
+  width: min(480px, 100vw);
+  overflow-y: auto;
+  border-left: 1px solid var(--color-border-strong);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--color-shadow-card);
+  color: var(--color-text-primary);
+}
+
+[data-theme="dark"] .finance-recon-sheet {
+  backdrop-filter: var(--blur-raised);
+  -webkit-backdrop-filter: var(--blur-raised);
+}
+
+.finance-recon-sheet__header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-bg-elevated) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.finance-recon-sheet__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border-radius: 0.65rem;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-surface);
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.finance-recon-sheet__close:hover {
+  color: var(--color-accent-cyan);
+  border-color: rgba(34, 211, 238, 0.35);
+}

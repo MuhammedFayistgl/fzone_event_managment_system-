@@ -23,5 +23,8 @@ const auditLogSchema = new mongoose.Schema(
 );
 
 auditLogSchema.index({ createdAt: -1 });
+auditLogSchema.index({ category: 1, createdAt: -1 });
+auditLogSchema.index({ eventId: 1, createdAt: -1 });
+auditLogSchema.index({ actorEmail: 1, createdAt: -1 });
 
 export default mongoose.model("AuditLog", auditLogSchema);

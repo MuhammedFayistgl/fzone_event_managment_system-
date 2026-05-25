@@ -9,6 +9,8 @@ import {
   formatRegistrationInvestor,
 } from "../utils/resolveRegistrationInvestors.js";
 import { applyPricingToPayload, validatePricingPayload } from "../utils/pricing.js";
+import { logAuditAction } from "../utils/auditLog.js";
+import { createNotification } from "../services/notificationService.js";
 
 
 
@@ -125,6 +127,24 @@ export const createEvent = async (req, res) => {
       eventDays: processedDays
     });
 
+    await logAuditAction({
+      action: "event.created",
+      category: "registration",
+      actor: req.user,
+      targetType: "event",
+      targetId: String(event._id),
+      eventId: event._id,
+      metadata: { title: event.title },
+      req,
+    });
+
+    createNotification("event.created", {
+      eventId: String(event._id),
+      eventTitle: event.title,
+      entity: { type: "event", id: String(event._id), eventId: String(event._id) },
+      sender: req.user,
+    }).catch(() => {});
+
     // ================= SUCCESS RESPONSE =================
     return res.status(201).json({
       success: true,
@@ -176,7 +196,18 @@ export const eventDelete = async (req, res) => {
   try {
     const { id } = req.params;
     await deleteTicketBgFiles(id);
-    await eventModel.findByIdAndDelete(id);
+    const deleted = await eventModel.findByIdAndDelete(id);
+    if (deleted) {
+      await logAuditAction({
+        action: "event.deleted",
+        category: "registration",
+        actor: req.user,
+        targetType: "event",
+        targetId: String(id),
+        metadata: { title: deleted.title },
+        req,
+      });
+    }
     res.status(200).json({ success: true, message: "Event deleted successfully" });
   } catch (error) {
     console.log(error);
@@ -313,6 +344,24 @@ export const updateEvent = async (req, res) => {
     });
 
     const updatedEvent = await existingEvent.save();
+
+    await logAuditAction({
+      action: "event.updated",
+      category: "registration",
+      actor: req.user,
+      targetType: "event",
+      targetId: String(updatedEvent._id),
+      eventId: updatedEvent._id,
+      metadata: { title: updatedEvent.title },
+      req,
+    });
+
+    createNotification("event.updated", {
+      eventId: String(updatedEvent._id),
+      eventTitle: updatedEvent.title,
+      entity: { type: "event", id: String(updatedEvent._id), eventId: String(updatedEvent._id) },
+      sender: req.user,
+    }).catch(() => {});
 
     // ================= SUCCESS =================
     return res.status(200).json({

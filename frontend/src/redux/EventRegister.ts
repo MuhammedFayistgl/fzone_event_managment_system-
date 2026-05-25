@@ -3,6 +3,7 @@ import type { EventFormState, Guest } from "../Types/event";
 import { checkInvestor, deleteRegisteredGuest, registerEvent } from "./Thunks/EventRegistorThunk";
 import { checkRegistrationStatus } from "./EventThunks";
 import type { LivePassType } from "../live/liveEvents";
+import { storePassSessionToken } from "../utils/authRole";
 
 type LiveCheckInPatch = {
   passType: LivePassType;
@@ -40,6 +41,7 @@ interface EventState {
   registrationCheckError: string;
 
   guests: Guest[];
+  passSessionToken: string;
 
 }
 
@@ -65,6 +67,7 @@ const initialState: EventState = {
 
 
   guests: [],
+  passSessionToken: "",
 };
 
 const eventRegistorSlice = createSlice({
@@ -212,6 +215,14 @@ const eventRegistorSlice = createSlice({
           const registration = action.payload?.registration ?? state.data?.registration;
           const participants =
             action.payload?.participants ?? registration?.participants ?? [];
+          state.passSessionToken = action.payload?.passSessionToken || "";
+          if (state.passSessionToken && registration?.phone && action.payload?.eventId) {
+            storePassSessionToken(
+              String(action.payload.eventId),
+              String(registration.phone),
+              state.passSessionToken
+            );
+          }
           state.data = {
             ...(state.data || {}),
             success: true,
@@ -238,6 +249,14 @@ const eventRegistorSlice = createSlice({
         .addCase(checkInvestor.fulfilled, (state, action) => {
           state.investorLoading = false;
           state.data = action.payload;
+          if (action.payload?.passSessionToken) {
+            state.passSessionToken = action.payload.passSessionToken;
+            const eventId = action.meta?.arg?.eventId;
+            const phone = action.meta?.arg?.phone;
+            if (eventId && phone) {
+              storePassSessionToken(String(eventId), String(phone), state.passSessionToken);
+            }
+          }
         })
 
         .addCase(checkInvestor.rejected, (state, action: any) => {

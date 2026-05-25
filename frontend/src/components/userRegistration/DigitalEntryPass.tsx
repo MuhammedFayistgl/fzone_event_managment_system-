@@ -336,9 +336,14 @@ export default function DigitalEntryPass({ event }: Props) {
 
   const passPhone = String(registration?.phone || investor?.Phone_No || "").replace(/\D/g, "");
 
+  const passSessionToken = useAppSelector(
+    (s: any) => s.eventRegistor?.passSessionToken || ""
+  );
+
   useLivePassSync({
     eventId: event?._id,
     phone: passPhone,
+    passSessionToken,
     enabled: Boolean(event?._id && passPhone && (registration?.qrToken || participants.length > 0)),
   });
 

@@ -13,6 +13,7 @@ type Props = {
     search: string;
     setSearch: (v: string) => void;
     onExport?: () => void;
+    isHighlighted?: (row: { id?: string; phone?: string }) => boolean;
 };
 
 
@@ -39,6 +40,7 @@ const RecentRegistrationsUI: React.FC<Props> = ({
     search,
     setSearch,
     onExport,
+    isHighlighted,
 }) => {
 
 
@@ -100,7 +102,11 @@ const RecentRegistrationsUI: React.FC<Props> = ({
                         filtered.map((item) => (
                             <div
                                 key={item.id}
-                                className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--color-card-hover)] hover:scale-[1.01] transition-all duration-200 cursor-pointer"
+                                id={`reg-row-${item.id}`}
+                                className={clsx(
+                                    "flex items-center justify-between p-3 rounded-xl hover:bg-[var(--color-card-hover)] hover:scale-[1.01] transition-all duration-200 cursor-pointer",
+                                    isHighlighted?.(item) && "notif-row-highlight"
+                                )}
                             >
                                 {/* Left */}
                                 <div className="flex items-center gap-3">

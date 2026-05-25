@@ -137,6 +137,17 @@ const paymentSchema = new mongoose.Schema(
     failedAt: {
       type: Date,
     },
+
+    reconciliationReviewedAt: {
+      type: Date,
+      default: null,
+    },
+
+    reconciliationNote: {
+      type: String,
+      default: "",
+      trim: true,
+    },
   },
   {
     timestamps: true,
@@ -149,7 +160,7 @@ const paymentSchema = new mongoose.Schema(
 paymentSchema.index({ eventId: 1, phone: 1 });
 
 // 🔍 status filtering (dashboard)
-paymentSchema.index({ status: 1 });
+paymentSchema.index({ status: 1, createdAt: -1 });
 
 // 🔍 latest payments
 paymentSchema.index({ createdAt: -1 });

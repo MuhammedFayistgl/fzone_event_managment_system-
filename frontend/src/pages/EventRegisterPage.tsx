@@ -259,7 +259,9 @@ export default function EventRegisterPagePro() {
       setReadyToSubmit(true);
 
       const existingCount =
-        investorRes?.registration?.participants?.length ?? 0;
+        investorRes?.registration?.participants?.length ??
+        investorRes?.registration?.participantCount ??
+        0;
 
       await refreshPaymentStatus(cleaned, existingCount);
     } catch {

@@ -103,6 +103,7 @@ const registrationSchema = new mongoose.Schema(
 );
 
 registrationSchema.index({ "participants.qrToken": 1 });
+registrationSchema.index({ eventId: 1, phone: 1 }, { unique: true });
 
 const RegEventModel = mongoose.model("registrations", registrationSchema);
 

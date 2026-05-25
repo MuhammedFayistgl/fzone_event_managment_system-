@@ -14,7 +14,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useAppDispatch, useAppSelector } from "../../hooks/hooks";
-import { useLiveEventSync } from "../../hooks/useLiveEventSync";
 import { fetchCreatedEvents } from "../../redux/EventThunks";
 import { useNavigate } from "react-router";
 import EventRegistrationPanel from "./EventRegistrationPanel";
@@ -50,11 +49,6 @@ export default function AttendencePage() {
   useEffect(() => {
     dispatch(fetchCreatedEvents(""));
   }, [dispatch]);
-
-  useLiveEventSync({
-    eventId: selectedEvent?._id,
-    enabled: Boolean(selectedEvent?._id && !isMobile),
-  });
 
   const filteredEvents = useMemo(() => {
     return events.filter((event) =>

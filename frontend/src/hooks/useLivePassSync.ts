@@ -12,21 +12,32 @@ import {
   type CheckInUpdatedPayload,
   type RegistrationBlockedPayload,
 } from "../live/liveEvents";
+import { getPassSessionToken } from "../utils/authRole";
 
 type Options = {
   eventId?: string;
   phone?: string;
+  passSessionToken?: string;
   enabled?: boolean;
 };
 
-export function useLivePassSync({ eventId, phone, enabled = true }: Options) {
+export function useLivePassSync({
+  eventId,
+  phone,
+  passSessionToken,
+  enabled = true,
+}: Options) {
   const dispatch = useAppDispatch();
 
   useEffect(() => {
     if (!enabled || !eventId || !phone) return;
 
+    const token =
+      passSessionToken || getPassSessionToken(eventId, phone);
+    if (!token) return;
+
     const socket = getLiveSocket();
-    joinPassRoom(eventId, phone);
+    joinPassRoom(eventId, phone, token);
 
     const onCheckIn = (payload: CheckInUpdatedPayload) => {
       if (String(payload.eventId) !== String(eventId)) return;
@@ -65,5 +76,5 @@ export function useLivePassSync({ eventId, phone, enabled = true }: Options) {
       socket.off(LIVE_EVENTS.REGISTRATION_BLOCKED, onBlocked);
       leavePassRoom(eventId, phone);
     };
-  }, [dispatch, enabled, eventId, phone]);
+  }, [dispatch, enabled, eventId, phone, passSessionToken]);
 }

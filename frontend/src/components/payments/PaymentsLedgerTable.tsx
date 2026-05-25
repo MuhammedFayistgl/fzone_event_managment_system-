@@ -1,4 +1,5 @@
 import { Eye, RotateCcw } from "lucide-react";
+import clsx from "clsx";
 import { formatCurrency } from "../../utils/pricing";
 import type { PaymentLedgerRow } from "../../Types/paymentLedger.types";
 
@@ -61,6 +62,7 @@ type Props = {
   onPageChange: (page: number) => void;
   onView: (row: PaymentLedgerRow) => void;
   onRefund?: (row: PaymentLedgerRow) => void;
+  isHighlighted?: (row: PaymentLedgerRow) => boolean;
 };
 
 export default function PaymentsLedgerTable({
@@ -71,6 +73,7 @@ export default function PaymentsLedgerTable({
   onPageChange,
   onView,
   onRefund,
+  isHighlighted,
 }: Props) {
   if (loading && rows.length === 0) {
     return (
@@ -111,7 +114,11 @@ export default function PaymentsLedgerTable({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row._id}>
+              <tr
+                key={row._id}
+                id={`payment-row-${row._id}`}
+                className={clsx(isHighlighted?.(row) && "notif-row-highlight")}
+              >
                 <td>{formatWhen(row)}</td>
                 <td>{row.event?.title || "—"}</td>
                 <td>{row.investorName || "—"}</td>

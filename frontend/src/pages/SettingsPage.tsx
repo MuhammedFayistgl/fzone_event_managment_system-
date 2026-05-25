@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, Moon, Sun, Shield, Bell, Wallet, Webhook, ScrollText } from "lucide-react";
 import { motion } from "framer-motion";
+import { SelectPicker } from "rsuite";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import AppPageLayout from "../layouts/AppPageLayout";
@@ -66,6 +67,18 @@ type PlatformSettings = {
     twilioFromNumber: string;
   };
 };
+
+const REFUND_POLICY_OPTIONS = [
+  { label: "Block on pending + processed refunds", value: "active_refunds" },
+  { label: "Block only after refund is processed", value: "processed_only" },
+];
+
+const PICKER_PROPS = {
+  popupClassName: "pro-picker-menu",
+  className: "pro-picker-toggle",
+  searchable: false,
+  cleanable: false,
+} as const;
 
 export default function SettingsPage() {
   const dispatch = useAppDispatch();
@@ -154,19 +167,21 @@ export default function SettingsPage() {
                 <Shield size={18} />
                 <h2 className="text-lg font-semibold">Refund access policy</h2>
               </div>
-              <select
-                className="event-register-guests__select max-w-md"
-                value={settings.refundAccessPolicy}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    refundAccessPolicy: e.target.value as PlatformSettings["refundAccessPolicy"],
-                  })
-                }
-              >
-                <option value="active_refunds">Block on pending + processed refunds</option>
-                <option value="processed_only">Block only after refund is processed</option>
-              </select>
+              <div className="max-w-md">
+                <SelectPicker
+                  {...PICKER_PROPS}
+                  data={REFUND_POLICY_OPTIONS}
+                  value={settings.refundAccessPolicy}
+                  onChange={(val) =>
+                    setSettings({
+                      ...settings,
+                      refundAccessPolicy:
+                        (val as PlatformSettings["refundAccessPolicy"]) || "active_refunds",
+                    })
+                  }
+                  block
+                />
+              </div>
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -276,6 +291,16 @@ export default function SettingsPage() {
             </button>
           </>
         )}
+
+        <section className="app-card p-5 space-y-3">
+          <h2 className="text-lg font-semibold">In-app notifications</h2>
+          <p className="text-sm text-app-muted">
+            Real-time alerts appear in the header bell and on the overview dashboard.
+          </p>
+          <Link to="/notifications" className="reg-toolbar-btn inline-flex w-fit">
+            Open notification center
+          </Link>
+        </section>
 
         <section className="app-card p-5 space-y-3">
           <h2 className="text-lg font-semibold">Platform tools</h2>

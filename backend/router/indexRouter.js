@@ -1,9 +1,12 @@
-import express from 'express';
+import express from "express";
 const router = express.Router();
 
-/* GET home page. */
-router.get('/', function (req, res, next) {
-    res.send({ title: 'Express' });
+router.get("/", (_req, res) => {
+  res.json({
+    success: true,
+    name: "F-Zone Event Management API",
+    health: "/health",
+  });
 });
 
 export default router;

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { reconnectLiveSocket, disconnectLiveSocket } from "../live/socket";
 
 let accessToken: string | null = null;
 
@@ -91,6 +92,7 @@ API.interceptors.response.use(
 
         setAccessToken(newToken);
         localStorage.setItem("accessToken", newToken);
+        reconnectLiveSocket();
 
         onRefreshed(newToken);
 
@@ -99,6 +101,7 @@ API.interceptors.response.use(
       } catch (refreshError) {
         setAccessToken(null);
         localStorage.removeItem("accessToken");
+        disconnectLiveSocket();
         window.location.href = "/login";
         return Promise.reject(refreshError);
       } finally {

@@ -33,7 +33,14 @@ const darkPickerTheme = createTheme({
     MuiPopper: {
       styleOverrides: {
         root: {
-          zIndex: 1500,
+          zIndex: 9999,
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundImage: "none",
         },
       },
     },
@@ -68,7 +75,14 @@ const lightPickerTheme = createTheme({
     MuiPopper: {
       styleOverrides: {
         root: {
-          zIndex: 1500,
+          zIndex: 9999,
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundImage: "none",
         },
       },
     },
@@ -101,7 +115,25 @@ const fieldSlotProps = (name?: string, variant: PickerVariant = "default", icon?
       : undefined,
   },
   popper: {
-    className: variant === "schedule" ? "pro-mui-picker-popper pro-mui-picker-popper--schedule" : "pro-mui-picker-popper",
+    className:
+      variant === "schedule"
+        ? "pro-mui-picker-popper pro-mui-picker-popper--schedule"
+        : "pro-mui-picker-popper",
+    sx: { zIndex: 9999 },
+  },
+  desktopPaper: {
+    className:
+      variant === "schedule"
+        ? "pro-mui-picker-paper pro-mui-picker-paper--schedule"
+        : "pro-mui-picker-paper",
+    elevation: 8,
+  },
+  mobilePaper: {
+    className:
+      variant === "schedule"
+        ? "pro-mui-picker-paper pro-mui-picker-paper--schedule"
+        : "pro-mui-picker-paper",
+    elevation: 8,
   },
   layout: {
     className: "pro-mui-picker-layout",

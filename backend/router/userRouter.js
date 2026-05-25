@@ -14,23 +14,26 @@ import {
 import {
   checkInvestorLimiter,
   paymentCreateLimiter,
+  paymentVerifyLimiter,
+  paymentFailedLimiter,
+  registrationLimiter,
+  registrationActionLimiter,
+  publicEventLimiter,
 } from "../middleware/rateLimit.middleware.js";
 
 const router = express.Router();
 
 router.post("/checkInvestor", checkInvestorLimiter, checkInvestor);
 
-// Registration (public — staff-assisted UI; rate-limited)
-router.post("/createRegistration", registerEvent);
-router.post("/check-registration", checkRegistrationStatus);
-router.post("/delete-guest", deleteGuestFromRegistration);
+router.post("/createRegistration", registrationLimiter, registerEvent);
+router.post("/check-registration", registrationActionLimiter, checkRegistrationStatus);
+router.post("/delete-guest", registrationActionLimiter, deleteGuestFromRegistration);
 
-// Payment (preserve existing flow)
 router.post("/createPayment", paymentCreateLimiter, createOrder);
-router.post("/createPaymentVerify", verifyPayment);
-router.post("/paymentFailed", markPaymentFailed);
-router.post("/check-payment-status", getPaymentStatus);
+router.post("/createPaymentVerify", paymentVerifyLimiter, verifyPayment);
+router.post("/paymentFailed", paymentFailedLimiter, markPaymentFailed);
+router.post("/check-payment-status", registrationActionLimiter, getPaymentStatus);
 
-router.post("/GetOneEventById/:id", GetOneEventById);
+router.post("/GetOneEventById/:id", publicEventLimiter, GetOneEventById);
 
 export default router;

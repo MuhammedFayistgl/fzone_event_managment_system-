@@ -1,4 +1,4 @@
-import redisClient from "../config/redis.js";
+import { redisDel, redisDeleteByPattern } from "../config/redis.js";
 import { emitDashboardUpdated } from "../live/liveHub.js";
 
 const DASHBOARD_CACHE_KEYS = [
@@ -10,9 +10,7 @@ const DASHBOARD_CACHE_KEYS = [
 
 export async function clearDashboardCache() {
   try {
-    for (const key of DASHBOARD_CACHE_KEYS) {
-      await redisClient.del(key);
-    }
+    await redisDel(DASHBOARD_CACHE_KEYS);
   } catch (err) {
     console.log("Dashboard cache clear error:", err);
   }
@@ -21,4 +19,13 @@ export async function clearDashboardCache() {
 export async function notifyDashboardMetricsChanged() {
   await clearDashboardCache();
   emitDashboardUpdated();
+}
+
+export async function clearInvestorListCache() {
+  try {
+    await redisDeleteByPattern("investors:*");
+    await clearDashboardCache();
+  } catch (err) {
+    console.log("Investor cache clear error:", err);
+  }
 }

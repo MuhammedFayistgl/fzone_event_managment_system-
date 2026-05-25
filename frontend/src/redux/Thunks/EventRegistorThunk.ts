@@ -1,12 +1,17 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import API from "../../api/axios";
+import { getPassSessionToken } from "../../utils/authRole";
 
 export const checkInvestor = createAsyncThunk(
   "check-investor",
-  async ({ phone, eventId }: any, { rejectWithValue }) => {
+  async ({ phone, eventId }: { phone: string; eventId?: string }, { rejectWithValue }) => {
     try {
+      const passSessionToken =
+        eventId ? getPassSessionToken(eventId, phone) : "";
       const res = await API.post("/user/checkInvestor", {
-        phone, eventId
+        phone,
+        eventId,
+        ...(passSessionToken ? { passSessionToken } : {}),
       });
       return res.data;
     } catch (err: any) {

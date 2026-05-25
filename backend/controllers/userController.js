@@ -12,13 +12,20 @@ import {
 } from "../utils/phone.js";
 import { ensureParticipantPasses } from "../utils/passQr.js";
 import { sanitizeBlockedReasonForUser } from "../utils/paymentRefund.js";
+import {
+  sanitizeInvestorPublic,
+  sanitizeRegistrationForOwner,
+  sanitizeRegistrationStatus,
+  sanitizeEventPublic,
+} from "../utils/publicResponse.js";
+import { issuePassSessionToken, verifyPassSessionToken } from "../utils/passSession.js";
 
 
 // controllers/investorController.js
 
 export const checkInvestor = async (req, res) => {
   try {
-    const { phone, eventId } = req.body;
+    const { phone, eventId, passSessionToken } = req.body;
 
     const normalized = normalizePhone(phone);
 
@@ -43,6 +50,8 @@ export const checkInvestor = async (req, res) => {
 
     // ================= CHECK REGISTRATION =================
     let registrationData = null;
+    let registered = false;
+    let passVerified = false;
 
     if (eventId) {
       const existing = await RegEventModel.findOne({
@@ -51,38 +60,54 @@ export const checkInvestor = async (req, res) => {
       });
 
       if (existing) {
-        await ensureParticipantPasses(existing);
-
-        const registrationObject = existing.toObject();
-        registrationObject.isBlocked = Boolean(existing.isBlocked);
-        registrationObject.blockedReason = existing.isBlocked
-          ? sanitizeBlockedReasonForUser(existing.blockedReason)
-          : "";
-        registrationObject.participants = (registrationObject.participants || []).map(
-          (participant) => ({
-            ...participant,
-            isBlocked: Boolean(participant.isBlocked),
-            blockedReason: participant.isBlocked
-              ? sanitizeBlockedReasonForUser(participant.blockedReason)
-              : "",
-          })
+        registered = true;
+        passVerified = verifyPassSessionToken(
+          passSessionToken,
+          eventId,
+          normalized.string
         );
 
-        registrationData = {
-          registered: true,
-          registration: registrationObject,
-        };
+        if (passVerified) {
+          await ensureParticipantPasses(existing);
+
+          const registrationObject = existing.toObject();
+          registrationObject.isBlocked = Boolean(existing.isBlocked);
+          registrationObject.blockedReason = existing.isBlocked
+            ? sanitizeBlockedReasonForUser(existing.blockedReason)
+            : "";
+          registrationObject.participants = (registrationObject.participants || []).map(
+            (participant) => ({
+              ...participant,
+              isBlocked: Boolean(participant.isBlocked),
+              blockedReason: participant.isBlocked
+                ? sanitizeBlockedReasonForUser(participant.blockedReason)
+                : "",
+            })
+          );
+
+          registrationData = sanitizeRegistrationForOwner(registrationObject);
+        } else {
+          registrationData = sanitizeRegistrationStatus(existing);
+        }
       }
     }
 
     // ================= FINAL RESPONSE =================
-    return res.json({
+    const response = {
       success: true,
-      investor,
+      investor: sanitizeInvestorPublic(investor),
+    };
 
-      // 🔥 NEW FIELD (IMPORTANT)
-      ...registrationData,
-    });
+    if (eventId && registered) {
+      response.registered = true;
+      response.passVerified = passVerified;
+      response.registration = registrationData;
+      if (passVerified) {
+        response.passSessionToken = issuePassSessionToken(eventId, normalized.string);
+      }
+    }
+
+    return res.json(response);
 
   } catch (err) {
     return res.status(500).json({
@@ -205,7 +230,7 @@ export const GetOneEventById = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Event fetched successfully",
-      data: event
+      data: sanitizeEventPublic(event)
     });
 
   } catch (error) {
@@ -217,7 +242,6 @@ export const GetOneEventById = async (req, res) => {
     });
   }
 };
-
 
 
 

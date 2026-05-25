@@ -198,6 +198,8 @@ export default function PaymentRefundModal({
                 block
                 searchable={false}
                 cleanable={false}
+                popupClassName="pro-picker-menu"
+                className="pro-picker-toggle"
                 placeholder="Select reason"
                 data={REASON_OPTIONS}
                 value={reason}

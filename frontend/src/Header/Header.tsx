@@ -6,6 +6,10 @@ import API from '../api/axios';
 import { useNavigate } from 'react-router';
 import { useAppDispatch, useAppSelector } from '../hooks/hooks';
 import { toggleTheme } from '../redux/store/slices/themeSlice';
+import { clearAccessToken } from '../utils/authRole';
+import { disconnectLiveSocket } from '../live/socket';
+import { NotificationBell } from '../features/notifications/components/NotificationBell';
+import logoUrl from '../assets/F-zone logo only_ png.svg';
 
 
 interface HeaderProps { }
@@ -27,8 +31,8 @@ const Header: FC<HeaderProps> = () => {
         }).then(async (result) => {
 
             if (result.isConfirmed) {
-
-                localStorage.removeItem("accessToken");
+                clearAccessToken();
+                disconnectLiveSocket();
 
                 await API.post("/admin/logout");
 
@@ -62,7 +66,7 @@ const Header: FC<HeaderProps> = () => {
                                 </Drawer.Body>
                             </Navbar.Drawer>
                             <Navbar.Brand href="#" onClick={(e) => { e.preventDefault(); navigate("/"); }}>
-                                <Avatar src="src\assets\F-zone logo only_ png.svg" circle size="sm" />
+                                <Avatar src={logoUrl} circle size="sm" />
                             </Navbar.Brand>
                         </>
                     );
@@ -70,6 +74,7 @@ const Header: FC<HeaderProps> = () => {
             </Navbar.Content>
 
             <div className="flex items-center gap-4">
+                <NotificationBell />
                 <button
                     type="button"
                     onClick={() => dispatch(toggleTheme())}

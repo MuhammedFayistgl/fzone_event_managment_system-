@@ -1,0 +1,237 @@
+.ids-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.ids-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.ids-breadcrumb a {
+  color: var(--color-accent, #22d3ee);
+  text-decoration: none;
+}
+
+.ids-schema-panel {
+  background: var(--color-card, #1a1d24);
+  border: 1px solid var(--color-border-strong, rgba(255, 255, 255, 0.08));
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+}
+
+.ids-schema-panel__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.ids-schema-panel__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.ids-schema-panel__subtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  max-width: 42rem;
+}
+
+.ids-schema-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ids-schema-alert {
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: rgba(34, 211, 238, 0.08);
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.ids-schema-table-wrap,
+.ids-preview-table-wrap,
+.ids-history-table-wrap,
+.ids-error-list-wrap {
+  overflow-x: auto;
+}
+
+.ids-schema-table,
+.ids-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.ids-schema-table th,
+.ids-schema-table td,
+.ids-preview-table th,
+.ids-preview-table td {
+  border-bottom: 1px solid var(--color-border-strong, rgba(255, 255, 255, 0.08));
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.ids-schema-table th,
+.ids-preview-table th {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.ids-schema-footnote,
+.ids-muted {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin-top: 0.75rem;
+}
+
+.ids-history h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.ids-ok {
+  color: #34d399;
+}
+
+.ids-err {
+  color: #f87171;
+}
+
+.ids-wizard-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.ids-wizard {
+  width: min(920px, 100%);
+  max-height: min(90vh, 800px);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-card, #1a1d24);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 1rem;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+}
+
+.ids-wizard__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.ids-wizard__header h2 {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.ids-wizard__close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ids-wizard__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.ids-wizard__step {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-muted);
+}
+
+.ids-wizard__step--active {
+  background: rgba(34, 211, 238, 0.15);
+  color: #22d3ee;
+}
+
+.ids-wizard__step--done {
+  color: #34d399;
+}
+
+.ids-wizard__body {
+  padding: 1.25rem;
+  overflow: auto;
+  flex: 1;
+}
+
+.ids-wizard__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--color-border-strong);
+}
+
+.ids-upload-zone {
+  border: 2px dashed var(--color-border-strong);
+  border-radius: 0.75rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.ids-header-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.ids-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.ids-summary-grid > div {
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ids-summary-grid span {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+[data-theme="light"] .ids-schema-panel,
+[data-theme="light"] .ids-wizard {
+  background: #ffffff;
+}

@@ -31,6 +31,12 @@ const WebhooksPage = lazy(() => import("./pages/platform/WebhooksPage"));
 const FinanceReconciliationPage = lazy(
   () => import("./pages/platform/FinanceReconciliationPage")
 );
+const NotificationCenterPage = lazy(
+  () => import("./features/notifications/pages/NotificationCenterPage")
+);
+const InvestorDataStudioPage = lazy(
+  () => import("./features/investor-data-studio/pages/InvestorDataStudioPage")
+);
 
 const ADMIN_ROLES = ["admin"];
 const STAFF_ROLES = ["admin", "scanner", "finance"];
@@ -49,7 +55,9 @@ function SuspensePage({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
 }
 
-const token = localStorage.getItem("accessToken");
+import { getAccessToken } from "./utils/authRole";
+
+const token = getAccessToken();
 if (token) setAccessToken(token);
 
 function App() {
@@ -89,6 +97,19 @@ function App() {
             <AdminShell>
               <SuspensePage>
                 <InvestorsTable />
+              </SuspensePage>
+            </AdminShell>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/user-management/data-studio"
+        element={
+          <ProtectedRoute roles={ADMIN_ROLES}>
+            <AdminShell>
+              <SuspensePage>
+                <InvestorDataStudioPage />
               </SuspensePage>
             </AdminShell>
           </ProtectedRoute>
@@ -193,6 +214,19 @@ function App() {
             <AdminShell>
               <SuspensePage>
                 <EventAttendanceDetails />
+              </SuspensePage>
+            </AdminShell>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/notifications"
+        element={
+          <ProtectedRoute roles={STAFF_ROLES}>
+            <AdminShell>
+              <SuspensePage>
+                <NotificationCenterPage />
               </SuspensePage>
             </AdminShell>
           </ProtectedRoute>

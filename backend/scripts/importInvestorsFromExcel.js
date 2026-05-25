@@ -12,6 +12,7 @@ import { fileURLToPath } from "url";
 import mongoose from "mongoose";
 import XLSX from "xlsx";
 import investorsModal from "../models/Investor.js";
+import { resolveInvestorGender } from "../utils/gender.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
@@ -24,167 +25,6 @@ const DEFAULT_FILE = path.resolve(
     "Database",
     "new list.xlsx"
 );
-
-const FEMALE_TOKENS = [
-    "fathima",
-    "fatima",
-    "fathimath",
-    "rasheeda",
-    "rashida",
-    "saleena",
-    "kadeeja",
-    "khadeeja",
-    "kadija",
-    "nabeela",
-    "nabeesa",
-    "jameela",
-    "sajna",
-    "ramla",
-    "ramlath",
-    "mihra",
-    "shabana",
-    "ayisha",
-    "aisha",
-    "ayishabi",
-    "mariam",
-    "maryam",
-    "haseena",
-    "nasreen",
-    "beevi",
-    "beegam",
-    " banu",
-    "banu ",
-    "hajira",
-    "souda",
-    "suhara",
-    "sakina",
-    "sakeena",
-    "nadeera",
-    "nadheera",
-    "habeeba",
-    "ummu",
-    "umma",
-    "mufeeda",
-    "farhana",
-    "henna",
-    "safiya",
-    "zubaida",
-    "hafsa",
-    "ruksana",
-    "rukhsana",
-    "nafisa",
-    "seenath",
-    "shareefa",
-    "muneera",
-    "rafeena",
-    "shameera",
-    "juvairia",
-    "asiya",
-    "asna",
-    "neema",
-    "seena",
-    "suhra",
-    "haseena",
-    "ramla ",
-    " ramla",
-];
-
-const MALE_TOKENS = [
-    "abdul",
-    "abdu ",
-    " abdu",
-    "mohammed",
-    "muhammad",
-    "muhammed",
-    "ibrahim",
-    "aboobacker",
-    "abubacker",
-    "hamdan",
-    "shamsudheen",
-    "shamsuddeen",
-    "neehad",
-    "ashraf",
-    "kunhalan",
-    "yahkoob",
-    "fazil",
-    "musthafa",
-    "safvan",
-    "mubarak",
-    "basith",
-    "refeek",
-    "aslam",
-    "jamsheed",
-    "labeeb",
-    "kabeer",
-    "haris",
-    "wasih",
-    "thajuddeen",
-    "shereef",
-    "majeed",
-    "hasik",
-    "rahiman",
-    "muhiyidheen",
-    "abdurahiman",
-    "musliyar",
-    "kunhi",
-    "shareef",
-    "basith",
-    "nabeel ", // nabeel male vs nabeela female - space matters
-    "anees",
-    "salam",
-    "jaleel",
-    "raoof",
-    "farook",
-    "farooq",
-    "haneef",
-    "saeed",
-    "sidheeq",
-    "shafi",
-    "shukoor",
-    "usman",
-    "mansoor",
-    "muneer",
-    "noushad",
-    "shameer",
-    "shameer",
-    "shameer",
-    "shameer",
-];
-
-const normalizeGender = (gender) => {
-    if (!gender) return null;
-    const g = String(gender).trim().toLowerCase();
-    if (["male", "m", "boy", "man"].includes(g)) return "Male";
-    if (["female", "f", "girl", "woman"].includes(g)) return "Female";
-    if (["other", "o"].includes(g)) return "Other";
-    return null;
-};
-
-const inferGenderFromName = (name) => {
-    const n = ` ${String(name).toLowerCase().replace(/[.,]/g, " ")} `;
-
-    for (const token of FEMALE_TOKENS) {
-        if (n.includes(token)) return "Female";
-    }
-
-    for (const token of MALE_TOKENS) {
-        if (n.includes(token)) return "Male";
-    }
-
-    // Single-word names ending in 'a' (not 'ia' only) — weak female hint
-    const first = String(name).trim().split(/\s+/)[0]?.toLowerCase() || "";
-    if (
-        first.length > 3 &&
-        first.endsWith("a") &&
-        !first.endsWith("ulla") &&
-        !first.endsWith("sha") &&
-        !["abdulla", "mustafa", "hamza", "ibraheem"].some((m) => first.includes(m))
-    ) {
-        return "Female";
-    }
-
-    return "Other";
-};
 
 const normalizePhone = (value) => {
     const digits = String(value ?? "").replace(/\D/g, "");
@@ -240,7 +80,7 @@ const mapRow = (raw, index) => {
     const Code_No = normalizeCode(find("Code_No", "Code", "CODE", "ID"));
     const Name = String(find("Name", "NAME", "Participant", "Full Name")).trim();
     const Phone_No = normalizePhone(find("Phone_No", "Phone", "Mobile", "PHONE"));
-    const explicitGender = normalizeGender(find("Gender", "GENDER", "Sex"));
+    const genderFromSheet = find("Gender", "GENDER", "Sex");
 
     if (!Code_No || !Name || !Phone_No) {
         return {
@@ -256,7 +96,7 @@ const mapRow = (raw, index) => {
         };
     }
 
-    const Gender = explicitGender || inferGenderFromName(Name);
+    const Gender = resolveInvestorGender(Name, genderFromSheet).gender;
 
     return {
         No,

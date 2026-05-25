@@ -7,11 +7,11 @@ import DashboardCards from './DashboardCards';
 import DashboardAudienceBreakdown from './DashboardAudienceBreakdown';
 import RecentRegistrationsContainer from "../components/ResentRegistration/RecentRegistrationsContainer";
 import StaffTools from '../components/StaffTools';
-import EventReport from '../components/EventReport';
 import EventCardDashbord from '../components/running_eventCard/EventCardDashbord';
 import AppPageLayout from '../layouts/AppPageLayout';
+import { RecentAlertsWidget } from '../features/notifications/components/RecentAlertsWidget';
 
-interface OverviewProps {}
+interface OverviewProps { }
 
 const Overview: FC<OverviewProps> = () => {
     const dispatch = useDispatch<AppDispatch>();
@@ -39,11 +39,10 @@ const Overview: FC<OverviewProps> = () => {
 
                 <div className="flex flex-col gap-6 w-full">
                     <div className="app-card-raised p-4 sm:p-6">
-                        <StaffTools />
+                        <RecentAlertsWidget />
                     </div>
-
                     <div className="app-card-raised p-4 sm:p-6">
-                        <EventReport />
+                        <StaffTools />
                     </div>
                 </div>
             </div>

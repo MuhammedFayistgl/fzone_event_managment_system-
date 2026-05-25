@@ -1,5 +1,5 @@
 import { Navigate } from "react-router-dom";
-import { jwtDecode } from "jwt-decode";
+import { getAccessToken, getRoleFromToken, clearAccessToken } from "../utils/authRole";
 
 type ProtectedRouteProps = {
   children: React.ReactNode;
@@ -8,31 +8,25 @@ type ProtectedRouteProps = {
 };
 
 const ProtectedRoute = ({ children, role = "admin", roles }: ProtectedRouteProps) => {
-  const token = localStorage.getItem("accessToken");
+  const token = getAccessToken();
   const allowedRoles = roles?.length ? roles : [role];
 
   if (!token) {
     return <Navigate to="/login" replace />;
   }
 
-  try {
-    const decoded = jwtDecode<{ exp?: number; role?: string }>(token);
+  const userRole = getRoleFromToken(token);
 
-    if (decoded.exp && decoded.exp * 1000 < Date.now()) {
-      localStorage.removeItem("accessToken");
-      return <Navigate to="/login" replace />;
-    }
-
-    const userRole = decoded.role || "admin";
-    if (!allowedRoles.includes(userRole)) {
-      return <Navigate to="/unauthorized" replace />;
-    }
-
-    return <>{children}</>;
-  } catch {
-    localStorage.removeItem("accessToken");
+  if (!userRole) {
+    clearAccessToken();
     return <Navigate to="/login" replace />;
   }
+
+  if (!allowedRoles.includes(userRole)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  return <>{children}</>;
 };
 
 export default ProtectedRoute;
