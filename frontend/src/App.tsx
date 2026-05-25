@@ -37,10 +37,10 @@ const InvestorDataStudioPage = lazy(
   () => import("./features/investor-data-studio/pages/InvestorDataStudioPage")
 );
 
-const ADMIN_ROLES = ["admin"];
-const STAFF_ROLES = ["admin", "scanner", "finance"];
-const SCANNER_ROLES = ["admin", "scanner"];
-const FINANCE_ROLES = ["admin", "finance"];
+const ADMIN_ROLES = ["super_admin", "admin"];
+const STAFF_ROLES = ["super_admin", "admin", "scanner", "finance"];
+const SCANNER_ROLES = ["super_admin", "admin", "scanner"];
+const FINANCE_ROLES = ["super_admin", "admin", "finance"];
 
 function PageLoader() {
   return (

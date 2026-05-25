@@ -1,4 +1,5 @@
 import API from "../../../api/axios";
+import { saveBlob } from "../../../utils/downloadFile";
 import type {
   CommitResult,
   DryRunResult,
@@ -72,11 +73,4 @@ export async function fetchInvestorImportHistory() {
   return res.data.data;
 }
 
-export function saveBlob(blob: Blob, filename: string) {
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  window.URL.revokeObjectURL(url);
-}
+export { saveBlob };

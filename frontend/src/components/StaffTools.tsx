@@ -1,28 +1,97 @@
 import type { FC } from "react";
 import { FaUsersGear, FaGear } from "react-icons/fa6";
 import { useNavigate } from "react-router";
-import { getRoleFromToken } from "../utils/authRole";
+import { getRoleFromToken, type PermissionKey } from "../utils/authRole";
+import { useAdminProfile } from "../hooks/useAdminProfile";
+
+type StaffToolItem = {
+  label: string;
+  path: string;
+  roles: string[];
+  permission?: PermissionKey;
+  hint?: string;
+  icon?: typeof FaUsersGear;
+};
 
 const StaffTools: FC = () => {
   const navigation = useNavigate();
   const role = getRoleFromToken();
+  const { hasPermission, isSuperAdmin, loading } = useAdminProfile();
 
-  const items = [
-    { label: "User Management (IDs)", path: "/user-management", roles: ["admin"] },
-    { label: "Investor Data Studio", path: "/user-management/data-studio", roles: ["admin"] },
-    { label: "Gate Scanner App", path: "/gate-scanner", roles: ["admin", "scanner"] },
-    { label: "Attendance Logs", path: "/attendance-logs", roles: ["admin", "scanner"] },
-    { label: "Payments & Revenue", path: "/payments", roles: ["admin", "finance"] },
-    { label: "Finance Reconciliation", path: "/finance/reconciliation", roles: ["admin", "finance"] },
-    { label: "Audit Log", path: "/platform/audit-log", roles: ["admin"] },
-    { label: "Webhook Deliveries", path: "/platform/webhooks", roles: ["admin"] },
-    { label: "Create Event", path: "/event", hint: "Includes ticket background design", roles: ["admin"] },
-    { label: "Settings", path: "/settings", icon: FaGear, roles: ["admin"] },
+  const items: StaffToolItem[] = [
+    {
+      label: "User Management (IDs)",
+      path: "/user-management",
+      roles: ["super_admin", "admin"],
+      permission: "investors:read",
+    },
+    {
+      label: "Investor Data Studio",
+      path: "/user-management/data-studio",
+      roles: ["super_admin", "admin"],
+      permission: "investors:import",
+    },
+    {
+      label: "Gate Scanner App",
+      path: "/gate-scanner",
+      roles: ["super_admin", "admin", "scanner"],
+    },
+    {
+      label: "Attendance Logs",
+      path: "/attendance-logs",
+      roles: ["super_admin", "admin", "scanner"],
+    },
+    {
+      label: "Payments & Revenue",
+      path: "/payments",
+      roles: ["super_admin", "admin", "finance"],
+    },
+    {
+      label: "Finance Reconciliation",
+      path: "/finance/reconciliation",
+      roles: ["super_admin", "admin", "finance"],
+    },
+    {
+      label: "Audit Log",
+      path: "/platform/audit-log",
+      roles: ["super_admin", "admin"],
+      permission: "audit:read",
+    },
+    {
+      label: "Webhook Deliveries",
+      path: "/platform/webhooks",
+      roles: ["super_admin", "admin"],
+      permission: "audit:read",
+    },
+    {
+      label: "Create Event",
+      path: "/event",
+      hint: "Includes ticket background design",
+      roles: ["super_admin", "admin"],
+      permission: "events:write",
+    },
+    {
+      label: "Settings",
+      path: "/settings",
+      icon: FaGear,
+      roles: ["super_admin", "admin"],
+      permission: "settings:write",
+    },
   ];
 
-  const visibleItems = role
-    ? items.filter((item) => item.roles.includes(role))
-    : [];
+  const visibleItems = items.filter((item) => {
+    if (!role || !item.roles.includes(role)) return false;
+    if (isSuperAdmin) return true;
+    if (role === "scanner" || role === "finance") return true;
+    if (item.permission) return hasPermission(item.permission);
+    return true;
+  });
+
+  if (loading && role === "admin") {
+    return (
+      <div className="w-full text-sm text-app-muted py-4">Loading staff tools…</div>
+    );
+  }
 
   return (
     <div className="w-full">
@@ -52,7 +121,7 @@ const StaffTools: FC = () => {
                   <span className="text-sm font-medium text-app-text block">
                     {item.label}
                   </span>
-                  {"hint" in item && item.hint && (
+                  {item.hint && (
                     <span className="text-xs text-app-muted">{item.hint}</span>
                   )}
                 </div>

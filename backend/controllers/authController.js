@@ -49,6 +49,7 @@ export const signupAdmin = async (req, res) => {
             email: String(email).trim().toLowerCase(),
             password: hashedPassword,
             role: "admin",
+            status: "pending",
         });
 
         return res.status(201).json({
@@ -118,6 +119,22 @@ export const loginAdmin = async (req, res) => {
         });
     }
 
+    if (user.role !== "super_admin") {
+        const status = user.status || "active";
+        if (status === "pending") {
+            return res.status(403).json({
+                success: false,
+                message: "Account pending super admin approval",
+            });
+        }
+        if (status === "disabled") {
+            return res.status(403).json({
+                success: false,
+                message: "Account disabled",
+            });
+        }
+    }
+
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
@@ -154,13 +171,29 @@ export const refreshToken = async (req, res) => {
 
     try {
         const decoded = jwt.verify(token, process.env.REFRESH_SECRET);
-        const user = await adminSchema.findById(decoded.id).select("role");
+        const user = await adminSchema.findById(decoded.id).select("role status");
 
         if (!user?.role) {
             return res.status(403).json({
                 success: false,
                 message: "Account has no assigned role",
             });
+        }
+
+        if (user.role !== "super_admin") {
+            const status = user.status || "active";
+            if (status === "pending") {
+                return res.status(403).json({
+                    success: false,
+                    message: "Account pending super admin approval",
+                });
+            }
+            if (status === "disabled") {
+                return res.status(403).json({
+                    success: false,
+                    message: "Account disabled",
+                });
+            }
         }
 
         const accessToken = jwt.sign(

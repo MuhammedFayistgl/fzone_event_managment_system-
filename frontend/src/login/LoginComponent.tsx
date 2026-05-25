@@ -7,6 +7,7 @@ import type { AppDispatch, RootState } from "../redux/store";
 import { LoginAdmin } from "../redux/store/slices/ExtraSlice/LoginExtraSlice";
 import { setAccessToken } from "../api/axios";
 import { reconnectLiveSocket } from "../live/socket";
+import { clearAdminProfileCache } from "../hooks/useAdminProfile";
 import AuthShell from "../components/auth/AuthShell";
 import { getApiErrorMessage } from "../utils/apiError";
 
@@ -54,6 +55,7 @@ const LoginComponent = () => {
       };
       localStorage.setItem("accessToken", res.accessToken);
       setAccessToken(res.accessToken);
+      clearAdminProfileCache();
       reconnectLiveSocket();
       toast.success("Welcome back");
       navigate("/");

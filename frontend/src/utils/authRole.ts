@@ -1,6 +1,22 @@
 import { jwtDecode } from "jwt-decode";
 
-const VALID_ROLES = new Set(["admin", "scanner", "finance"]);
+const VALID_ROLES = new Set(["super_admin", "admin", "scanner", "finance"]);
+
+export const PERMISSION_KEYS = [
+  "events:read",
+  "events:write",
+  "investors:read",
+  "investors:write",
+  "investors:import",
+  "registrations:read",
+  "registrations:write",
+  "payments:read",
+  "payments:refund",
+  "settings:write",
+  "audit:read",
+] as const;
+
+export type PermissionKey = (typeof PERMISSION_KEYS)[number];
 
 type TokenPayload = {
   exp?: number;
@@ -23,6 +39,10 @@ export function getRoleFromToken(token = getAccessToken()): string | null {
   }
 }
 
+export function isSuperAdmin(token = getAccessToken()): boolean {
+  return getRoleFromToken(token) === "super_admin";
+}
+
 export function isAccessTokenValid(): boolean {
   return Boolean(getRoleFromToken());
 }
@@ -43,4 +63,35 @@ export function getPassSessionToken(eventId: string, phone: string): string {
 
 export function clearPassSessionToken(eventId: string, phone: string) {
   sessionStorage.removeItem(`${PASS_SESSION_PREFIX}${eventId}:${phone}`);
+}
+
+export function hasPermission(
+  permissions: string[],
+  key: PermissionKey,
+  role: string | null = getRoleFromToken()
+): boolean {
+  if (role === "super_admin") return true;
+  if (role === "scanner") {
+    return ["registrations:read", "events:read"].includes(key);
+  }
+  if (role === "finance") {
+    return ["payments:read", "payments:refund", "registrations:read"].includes(key);
+  }
+  if (role === "admin") {
+    return permissions.includes(key);
+  }
+  return false;
+}
+
+export function canAccessStaffTool(
+  permissions: string[],
+  roles: string[],
+  role: string | null = getRoleFromToken()
+): boolean {
+  if (!role) return false;
+  if (roles.includes(role)) {
+    if (role === "super_admin") return true;
+    if (role === "scanner" || role === "finance") return true;
+  }
+  return false;
 }

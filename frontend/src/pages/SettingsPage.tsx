@@ -9,6 +9,8 @@ import { useAppDispatch, useAppSelector } from "../hooks/hooks";
 import { setTheme, type ThemeMode } from "../redux/store/slices/themeSlice";
 import API from "../api/axios";
 import StaffAccountsSection from "../features/staff/StaffAccountsSection";
+import ClientGuideSection from "../features/client-guide/ClientGuideSection";
+import { useAdminProfile } from "../hooks/useAdminProfile";
 import { getRoleFromToken } from "../utils/authRole";
 
 const themes: { id: ThemeMode; label: string; description: string; icon: typeof Sun }[] = [
@@ -85,16 +87,20 @@ const PICKER_PROPS = {
 export default function SettingsPage() {
   const dispatch = useAppDispatch();
   const current = useAppSelector((s) => s.theme.mode);
-  const isAdmin = getRoleFromToken() === "admin";
+  const { isSuperAdmin, hasPermission, role } = useAdminProfile();
+  const isAdminUser = role === "admin" || role === "super_admin";
+  const canEditSettings = isSuperAdmin || hasPermission("settings:write");
+  const canViewAudit = isSuperAdmin || hasPermission("audit:read");
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
   const [gateInput, setGateInput] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (!canEditSettings) return;
     API.get("/admin/platform/settings")
       .then((res) => setSettings(res.data?.data || null))
       .catch(() => toast.error("Could not load platform settings"));
-  }, []);
+  }, [canEditSettings]);
 
   const saveSettings = async () => {
     if (!settings) return;
@@ -163,9 +169,11 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {isAdmin && <StaffAccountsSection />}
+        {isAdminUser && <ClientGuideSection />}
 
-        {settings && (
+        {isSuperAdmin && <StaffAccountsSection />}
+
+        {settings && canEditSettings && (
           <>
             <section className="app-card p-5 space-y-4">
               <div className="flex items-center gap-2">
@@ -307,6 +315,7 @@ export default function SettingsPage() {
           </Link>
         </section>
 
+        {canViewAudit && (
         <section className="app-card p-5 space-y-3">
           <h2 className="text-lg font-semibold">Platform tools</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -318,12 +327,15 @@ export default function SettingsPage() {
               <Webhook size={18} className="mb-2 text-app-accent" />
               <p className="font-semibold">Webhook deliveries</p>
             </Link>
+            {(isSuperAdmin || getRoleFromToken() === "finance") && (
             <Link to="/finance/reconciliation" className="app-card p-4 hover:bg-[var(--color-card-hover)] transition">
               <Wallet size={18} className="mb-2 text-app-accent" />
               <p className="font-semibold">Finance reconciliation</p>
             </Link>
+            )}
           </div>
         </section>
+        )}
       </div>
     </AppPageLayout>
   );

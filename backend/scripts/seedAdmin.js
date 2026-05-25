@@ -12,8 +12,12 @@ import adminSchema from "../models/adminModel.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
+import { getSuperAdminEmail } from "../config/permissions.js";
+
 const email = process.env.SEED_ADMIN_EMAIL;
 const password = process.env.SEED_ADMIN_PASSWORD;
+const superEmail = getSuperAdminEmail();
+const isSuperAdmin = email?.trim().toLowerCase() === superEmail;
 
 if (!email || !password) {
   console.error("Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD in backend/.env");
@@ -30,6 +34,12 @@ if (existing) {
 }
 
 const hashed = await bcrypt.hash(password, 10);
-await adminSchema.create({ email, password: hashed, role: "admin" });
-console.log("Admin created:", email);
+await adminSchema.create({
+  email,
+  password: hashed,
+  role: isSuperAdmin ? "super_admin" : "admin",
+  status: "active",
+  permissions: [],
+});
+console.log(isSuperAdmin ? "Super admin created:" : "Admin created:", email);
 await mongoose.disconnect();

@@ -1,0 +1,94 @@
+@page {
+  size: A4;
+  margin: 18mm 16mm 20mm 16mm;
+}
+
+html {
+  font-size: 11pt;
+}
+
+body {
+  font-family: "Segoe UI", "Noto Sans Malayalam", "Nirmala UI", sans-serif;
+  line-height: 1.55;
+  color: #1a1a2e;
+}
+
+h1 {
+  font-size: 22pt;
+  color: #0f766e;
+  border-bottom: 2px solid #14b8a6;
+  padding-bottom: 8px;
+  margin-top: 0;
+  page-break-after: avoid;
+}
+
+h2 {
+  font-size: 15pt;
+  color: #115e59;
+  margin-top: 1.4em;
+  page-break-after: avoid;
+}
+
+h3 {
+  font-size: 12pt;
+  color: #134e4a;
+  page-break-after: avoid;
+}
+
+p, li {
+  orphans: 3;
+  widows: 3;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  margin: 12px 0 16px;
+  page-break-inside: avoid;
+}
+
+blockquote {
+  border-left: 4px solid #14b8a6;
+  margin: 12px 0;
+  padding: 8px 14px;
+  background: #f0fdfa;
+  color: #134e4a;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 16px;
+  font-size: 10pt;
+}
+
+th, td {
+  border: 1px solid #cbd5e1;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+th {
+  background: #ecfeff;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #cbd5e1;
+  margin: 24px 0;
+}
+
+.lang-block {
+  margin-bottom: 12px;
+}
+
+.cover-meta {
+  font-size: 12pt;
+  color: #475569;
+}
+
+.page-break {
+  page-break-before: always;
+}

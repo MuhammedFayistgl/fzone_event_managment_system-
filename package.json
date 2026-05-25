@@ -5,7 +5,8 @@
     "scripts": {
         "start": "concurrently \"npm run backend\" \"npm run frontend\"",
         "backend": "cd backend && npm run dev",
-        "frontend": "cd frontend && npm run dev -- --host"
+        "frontend": "cd frontend && npm run dev -- --host",
+        "sync:client-guide": "node scripts/sync-client-guide.mjs"
     },
     "devDependencies": {
         "concurrently": "^8.2.2"

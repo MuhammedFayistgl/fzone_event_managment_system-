@@ -1,0 +1,17 @@
+{
+  "name": "fzone-client-handover",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "capture": "node scripts/capture-screenshots.mjs",
+    "placeholders": "node scripts/generate-placeholder-screenshots.mjs",
+    "pdf": "node scripts/generate-pdf.mjs",
+    "copypaste": "node scripts/generate-copypaste.mjs",
+    "build": "npm run pdf && npm run copypaste && node ../../scripts/sync-client-guide.mjs"
+  },
+  "devDependencies": {
+    "dotenv": "^17.3.1",
+    "md-to-pdf": "^5.2.4",
+    "playwright": "^1.52.0"
+  }
+}

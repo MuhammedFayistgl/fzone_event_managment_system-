@@ -21,6 +21,7 @@
     "test:investor-import": "node scripts/testInvestorImportValidation.js",
     "migrate:atlas": "node scripts/migrateLocalToAtlas.js",
     "test:atlas": "node scripts/testAtlasConnection.js",
+    "bootstrap:super-admin": "node scripts/bootstrapSuperAdmin.js",
     "env:render": "node scripts/generateRenderEnv.js"
   },
   "keywords": [],

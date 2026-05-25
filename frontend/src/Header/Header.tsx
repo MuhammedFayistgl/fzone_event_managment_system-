@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router';
 import { useAppDispatch, useAppSelector } from '../hooks/hooks';
 import { toggleTheme } from '../redux/store/slices/themeSlice';
 import { clearAccessToken } from '../utils/authRole';
+import { clearAdminProfileCache } from '../hooks/useAdminProfile';
 import { disconnectLiveSocket } from '../live/socket';
 import { NotificationBell } from '../features/notifications/components/NotificationBell';
 import logoUrl from '../assets/F-zone logo only_ png.svg';
@@ -32,6 +33,7 @@ const Header: FC<HeaderProps> = () => {
 
             if (result.isConfirmed) {
                 clearAccessToken();
+                clearAdminProfileCache();
                 disconnectLiveSocket();
 
                 await API.post("/admin/logout");

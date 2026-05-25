@@ -37,6 +37,7 @@ import {
     syncAccessAfterRefund,
 } from "../utils/paymentRefund.js";
 import { logAuditAction } from "../utils/auditLog.js";
+import { getActorFromRequest, updatedByMeta } from "../utils/adminActor.js";
 import { notifyUser } from "../utils/notifications.js";
 import { createNotification } from "../services/notificationService.js";
 import { withLock } from "../utils/distributedLock.js";
@@ -389,10 +390,22 @@ export const updateInvestor = async (req, res) => {
 
         await clearInvestorCache();
 
+        const actor = getActorFromRequest(req);
+        await logAuditAction({
+            action: "investor.updated",
+            category: "investor",
+            actor,
+            targetType: "investor",
+            targetId: updated._id,
+            metadata: { code: updated.Code_No, name: updated.Name },
+            req,
+        });
+
         res.json({
             status: true,
             message: "Updated successfully",
             data: updated,
+            updatedBy: updatedByMeta(req),
         });
     } catch (error) {
         console.log(error);
@@ -432,6 +445,15 @@ export const fixInvestorGendersFromNames = async (req, res) => {
             }));
             await investorsModal.bulkWrite(bulk);
             await clearInvestorCache();
+
+            const actor = getActorFromRequest(req);
+            await logAuditAction({
+                action: "investor.gender_batch_fix",
+                category: "investor",
+                actor,
+                metadata: { count: changes.length },
+                req,
+            });
         }
 
         res.json({
@@ -443,6 +465,7 @@ export const fixInvestorGendersFromNames = async (req, res) => {
             message: dryRun
                 ? `Dry run: ${changes.length} investor(s) would be updated`
                 : `Updated ${changes.length} investor gender(s) from name`,
+            updatedBy: !dryRun && changes.length > 0 ? updatedByMeta(req) : null,
         });
     } catch (error) {
         console.log(error);
@@ -474,9 +497,21 @@ export const deleteInvestor = async (req, res) => {
 
         await clearInvestorCache();
 
+        const actor = getActorFromRequest(req);
+        await logAuditAction({
+            action: "investor.deleted",
+            category: "investor",
+            actor,
+            targetType: "investor",
+            targetId: deleted._id,
+            metadata: { code: deleted.Code_No, name: deleted.Name },
+            req,
+        });
+
         res.json({
             status: true,
             message: "Deleted successfully",
+            updatedBy: updatedByMeta(req),
         });
     } catch (error) {
         console.log(error);

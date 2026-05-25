@@ -1,6 +1,13 @@
 import express from "express";
 import authMiddleware from "../middleware/authMiddleware.js";
-import { requireRole, requireAnyRole } from "../middleware/roleMiddleware.js";
+import attachAdmin from "../middleware/attachAdmin.js";
+import {
+  requireAnyRole,
+  requireSuperAdmin,
+  requireActiveStaff,
+  requirePermission,
+  requirePermissionOrRole,
+} from "../middleware/roleMiddleware.js";
 import { authLimiter } from "../middleware/rateLimit.middleware.js";
 
 import {
@@ -101,15 +108,37 @@ import {
   investorImportUpload,
 } from "../middleware/investorImportUpload.middleware.js";
 
-import { listStaff, createStaff } from "../controllers/staffController.js";
+import {
+  listStaff,
+  createStaff,
+  activateStaff,
+  disableStaff,
+  updateStaffPermissions,
+  getPermissionsCatalog,
+  getAdminProfile,
+} from "../controllers/staffController.js";
 
 const router = express.Router();
 
-/** Admin routes are always protected — no env bypass. */
-const protectAdmin = [authMiddleware, requireRole("admin")];
-const protectStaff = [authMiddleware, requireAnyRole("admin", "scanner", "finance")];
-const protectScanner = [authMiddleware, requireAnyRole("admin", "scanner")];
-const protectFinance = [authMiddleware, requireAnyRole("admin", "finance")];
+const auth = authMiddleware;
+const loadAdmin = attachAdmin;
+const active = requireActiveStaff();
+
+const protectSuperAdmin = [auth, loadAdmin, requireSuperAdmin()];
+const protectStaff = [auth, loadAdmin, active, requireAnyRole("super_admin", "admin", "scanner", "finance")];
+const protectScanner = [auth, loadAdmin, active, requireAnyRole("super_admin", "admin", "scanner")];
+const protectFinance = [auth, loadAdmin, active, requireAnyRole("super_admin", "admin", "finance")];
+const protectMe = [auth, loadAdmin, active, requireAnyRole("super_admin", "admin", "scanner", "finance")];
+
+const permEventsRead = requirePermissionOrRole("events:read", "scanner", "finance");
+const permEventsWrite = requirePermission("events:write");
+const permInvestorsRead = requirePermission("investors:read");
+const permInvestorsWrite = requirePermission("investors:write");
+const permInvestorsImport = requirePermission("investors:import");
+const permRegistrationsRead = requirePermissionOrRole("registrations:read", "scanner", "finance");
+const permRegistrationsWrite = requirePermission("registrations:write");
+const permSettingsWrite = requirePermission("settings:write");
+const permAuditRead = requirePermission("audit:read");
 
 // ================= PUBLIC (auth) =================
 router.post("/login", authLimiter, loginAdmin);
@@ -117,69 +146,77 @@ router.post("/signup", authLimiter, signupAdmin);
 router.post("/refresh", authLimiter, refreshToken);
 router.post("/logout", logout);
 
+// Current admin profile (permissions for UI gating)
+router.get("/me", ...protectMe, getAdminProfile);
+
 // ================= PROTECTED (admin) =================
-router.post("/uploadInvestorDetails", ...protectAdmin, uploadInvestorDetails);
-router.post("/getInvestorDetails", ...protectAdmin, fetchInvestorData);
-router.get("/getDashboardSummary", ...protectStaff, getDashboardSummary);
-router.put("/updateInvestor/:id", ...protectAdmin, updateInvestor);
-router.post("/investors/fix-gender-from-names", ...protectAdmin, fixInvestorGendersFromNames);
-router.delete("/deleteInvestor/:id", ...protectAdmin, deleteInvestor);
+router.post("/uploadInvestorDetails", ...protectStaff, permInvestorsImport, uploadInvestorDetails);
+router.post("/getInvestorDetails", ...protectStaff, permInvestorsRead, fetchInvestorData);
+router.get("/getDashboardSummary", ...protectStaff, permEventsRead, getDashboardSummary);
+router.put("/updateInvestor/:id", ...protectStaff, permInvestorsWrite, updateInvestor);
+router.post("/investors/fix-gender-from-names", ...protectStaff, permInvestorsWrite, fixInvestorGendersFromNames);
+router.delete("/deleteInvestor/:id", ...protectStaff, permInvestorsWrite, deleteInvestor);
 
 // Investor Data Studio (schema, template, import)
-router.get("/investors/schema", ...protectAdmin, getInvestorSchemaHandler);
-router.get("/investors/template.xlsx", ...protectAdmin, downloadInvestorTemplate);
-router.get("/investors/export.xlsx", ...protectAdmin, exportInvestorsXlsx);
-router.get("/investors/import/history", ...protectAdmin, getInvestorImportHistory);
+router.get("/investors/schema", ...protectStaff, permInvestorsImport, getInvestorSchemaHandler);
+router.get("/investors/template.xlsx", ...protectStaff, permInvestorsImport, downloadInvestorTemplate);
+router.get("/investors/export.xlsx", ...protectStaff, permInvestorsRead, exportInvestorsXlsx);
+router.get("/investors/import/history", ...protectStaff, permInvestorsImport, getInvestorImportHistory);
 router.post(
   "/investors/import/dry-run",
-  ...protectAdmin,
+  ...protectStaff,
+  permInvestorsImport,
   investorImportUpload.single("file"),
   handleInvestorImportUploadError,
   investorImportDryRun
 );
 router.post(
   "/investors/import/error-report",
-  ...protectAdmin,
+  ...protectStaff,
+  permInvestorsImport,
   investorImportUpload.single("file"),
   handleInvestorImportUploadError,
   downloadInvestorImportErrorReport
 );
 router.post(
   "/investors/import/commit",
-  ...protectAdmin,
+  ...protectStaff,
+  permInvestorsImport,
   investorImportUpload.single("file"),
   handleInvestorImportUploadError,
   investorImportCommit
 );
 
 // Events
-router.post("/createvent", ...protectAdmin, createEvent);
-router.get("/createdevents", ...protectStaff, getAllEvents);
-router.delete("/eventDelete/:id", ...protectAdmin, eventDelete);
-router.put("/eventedit/:id", ...protectAdmin, updateEvent);
+router.post("/createvent", ...protectStaff, permEventsWrite, createEvent);
+router.get("/createdevents", ...protectStaff, permEventsRead, getAllEvents);
+router.delete("/eventDelete/:id", ...protectStaff, permEventsWrite, eventDelete);
+router.put("/eventedit/:id", ...protectStaff, permEventsWrite, updateEvent);
 router.get(
   "/getRunningEventsWithRegistrations",
   ...protectStaff,
+  permEventsRead,
   getDashboardEventsWithRegistrations
 );
-router.patch("/events/:id/close-registration", ...protectAdmin, closeRegistration);
+router.patch("/events/:id/close-registration", ...protectStaff, permRegistrationsWrite, closeRegistration);
 
 router.post(
   "/events/:id/ticket-background",
-  ...protectAdmin,
+  ...protectStaff,
+  permEventsWrite,
   ticketBackgroundUpload.single("background"),
   uploadTicketBackground
 );
-router.delete("/events/:id/ticket-background", ...protectAdmin, deleteTicketBackground);
-router.patch("/events/:id/ticket-design", ...protectAdmin, updateTicketDesignMode);
+router.delete("/events/:id/ticket-background", ...protectStaff, permEventsWrite, deleteTicketBackground);
+router.patch("/events/:id/ticket-design", ...protectStaff, permEventsWrite, updateTicketDesignMode);
 
 // QR check-in
 router.post("/verify-qr", ...protectScanner, verifyQR);
 
 // Registration reports
-router.post("/RegistrationDetils", ...protectStaff, registrationDetails);
-router.post("/all-registrations", ...protectStaff, getAllRegistrations);
-router.post("/all-registrations/export", ...protectStaff, exportAllRegistrations);
+router.post("/RegistrationDetils", ...protectStaff, permRegistrationsRead, registrationDetails);
+router.post("/all-registrations", ...protectStaff, permRegistrationsRead, getAllRegistrations);
+router.post("/all-registrations/export", ...protectStaff, permRegistrationsRead, exportAllRegistrations);
 router.post("/payment-ledger", ...protectFinance, paymentLedger);
 router.post("/payment-ledger/export", ...protectFinance, exportPaymentLedgerAll);
 router.post("/payments/:paymentId/refund", ...protectFinance, issuePaymentRefund);
@@ -190,25 +227,30 @@ router.post(
 );
 router.patch(
   "/registrations/:registrationId/block",
-  ...protectAdmin,
+  ...protectStaff,
+  permRegistrationsWrite,
   blockRegistrationParticipant
 );
 
 // Platform / SaaS
-router.get("/platform/settings", ...protectAdmin, getPlatformSettings);
-router.patch("/platform/settings", ...protectAdmin, patchPlatformSettings);
-router.get("/platform/staff", ...protectAdmin, listStaff);
-router.post("/platform/staff", ...protectAdmin, createStaff);
-router.get("/platform/audit-logs/summary", ...protectAdmin, getAuditLogSummary);
-router.get("/platform/audit-logs/analytics", ...protectAdmin, getAuditLogAnalytics);
-router.post("/platform/audit-logs/export", ...protectAdmin, exportAuditLogsHandler);
-router.get("/platform/audit-logs/:id", ...protectAdmin, getAuditLogDetail);
-router.get("/platform/audit-logs", ...protectAdmin, getAuditLogs);
-router.get("/platform/webhooks/summary", ...protectAdmin, getWebhookSummary);
-router.get("/platform/webhooks/analytics", ...protectAdmin, getWebhookAnalytics);
-router.post("/platform/webhooks/export", ...protectAdmin, exportWebhooksHandler);
-router.get("/platform/webhooks/:id", ...protectAdmin, getWebhookDetail);
-router.get("/platform/webhooks", ...protectAdmin, getWebhookDeliveries);
+router.get("/platform/settings", ...protectStaff, permSettingsWrite, getPlatformSettings);
+router.patch("/platform/settings", ...protectStaff, permSettingsWrite, patchPlatformSettings);
+router.get("/platform/staff", ...protectSuperAdmin, listStaff);
+router.post("/platform/staff", ...protectSuperAdmin, createStaff);
+router.patch("/platform/staff/:id/activate", ...protectSuperAdmin, activateStaff);
+router.patch("/platform/staff/:id/disable", ...protectSuperAdmin, disableStaff);
+router.patch("/platform/staff/:id/permissions", ...protectSuperAdmin, updateStaffPermissions);
+router.get("/platform/permissions/catalog", ...protectSuperAdmin, getPermissionsCatalog);
+router.get("/platform/audit-logs/summary", ...protectStaff, permAuditRead, getAuditLogSummary);
+router.get("/platform/audit-logs/analytics", ...protectStaff, permAuditRead, getAuditLogAnalytics);
+router.post("/platform/audit-logs/export", ...protectStaff, permAuditRead, exportAuditLogsHandler);
+router.get("/platform/audit-logs/:id", ...protectStaff, permAuditRead, getAuditLogDetail);
+router.get("/platform/audit-logs", ...protectStaff, permAuditRead, getAuditLogs);
+router.get("/platform/webhooks/summary", ...protectStaff, permAuditRead, getWebhookSummary);
+router.get("/platform/webhooks/analytics", ...protectStaff, permAuditRead, getWebhookAnalytics);
+router.post("/platform/webhooks/export", ...protectStaff, permAuditRead, exportWebhooksHandler);
+router.get("/platform/webhooks/:id", ...protectStaff, permAuditRead, getWebhookDetail);
+router.get("/platform/webhooks", ...protectStaff, permAuditRead, getWebhookDeliveries);
 router.get("/platform/reconciliation", ...protectFinance, getFinanceReconciliation);
 router.get("/platform/reconciliation/summary", ...protectFinance, getReconciliationSummary);
 router.get("/platform/reconciliation/transactions", ...protectFinance, getReconciliationTransactions);
@@ -217,7 +259,7 @@ router.get("/platform/reconciliation/analytics", ...protectFinance, getReconcili
 router.get("/platform/reconciliation/activity", ...protectFinance, getReconciliationActivity);
 router.post("/platform/reconciliation/export", ...protectFinance, exportReconciliation);
 router.post("/platform/reconciliation/transactions/:id/resolve", ...protectFinance, resolveReconciliationTransaction);
-router.get("/platform/waitlist", ...protectAdmin, getWaitlist);
+router.get("/platform/waitlist", ...protectStaff, permSettingsWrite, getWaitlist);
 router.get("/platform/gates", ...protectScanner, getGateNames);
 
 // Notifications (staff inbox)
