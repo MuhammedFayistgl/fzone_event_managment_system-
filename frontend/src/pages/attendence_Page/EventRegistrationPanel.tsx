@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Search, MapPin, Users, Wallet, BadgeCheck, UserCheck } from "lucide-react";
 import { Input, InputGroup } from "rsuite";
 
@@ -22,6 +23,7 @@ export default function EventRegistrationPanel({
   variant = "compact",
 }: Props) {
   const dispatch = useAppDispatch();
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
 
   const payload = useAppSelector((s: any) => s.eventRegistorData?.eventsRegistors);
@@ -40,6 +42,11 @@ export default function EventRegistrationPanel({
   useEffect(() => {
     setSearch("");
   }, [eventId]);
+
+  useEffect(() => {
+    const urlSearch = searchParams.get("search")?.trim();
+    if (urlSearch) setSearch(urlSearch);
+  }, [searchParams, eventId]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -75,28 +82,51 @@ export default function EventRegistrationPanel({
   const isCompact = variant === "compact";
 
   return (
-    <div className={`text-app-text ${isCompact ? "" : "min-h-screen bg-app-base"}`}>
-      <div className={`${isCompact ? "p-6 border-b border-app-border" : "relative p-8 overflow-hidden border-b border-app-border"}`}>
-        {!isCompact && (
-          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/20" />
+    <div className="text-app-text">
+      <div className={isCompact ? "p-6 border-b border-app-border" : "mb-6"}>
+        {isCompact ? (
+          <>
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <span className="px-3 py-1 rounded-full bg-cyan-500/20 text-app-cyan text-xs">{event.locationType}</span>
+              <span className="px-3 py-1 rounded-full bg-app-surface border border-app-border text-app-text text-xs">
+                {formatEventPricingLabel(event)}
+              </span>
+              {event.allowGuests && (
+                <span className="px-3 py-1 rounded-full bg-fuchsia-500/20 text-app-fuchsia text-xs">Guests allowed</span>
+              )}
+            </div>
+            <h2 className="font-black text-app-text text-2xl">{event.title}</h2>
+            <p className="text-app-muted mt-2 text-sm">{event.description}</p>
+            <div className="flex items-center gap-2 text-app-muted text-sm mt-3">
+              <MapPin className="w-4 h-4 text-app-cyan" />
+              <span>{event.location}</span>
+            </div>
+          </>
+        ) : (
+          <div className="relative overflow-hidden rounded-2xl border border-app-border bg-app-surface-raised shadow-[var(--color-shadow-card)]">
+            <div
+              className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-fuchsia-500/10"
+              aria-hidden
+            />
+            <div className="relative p-6 md:p-8">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <span className="px-3 py-1 rounded-full bg-cyan-500/20 text-app-cyan text-xs">{event.locationType}</span>
+                <span className="px-3 py-1 rounded-full bg-app-surface border border-app-border text-app-text text-xs">
+                  {formatEventPricingLabel(event)}
+                </span>
+                {event.allowGuests && (
+                  <span className="px-3 py-1 rounded-full bg-fuchsia-500/20 text-app-fuchsia text-xs">Guests allowed</span>
+                )}
+              </div>
+              <h2 className="font-black text-app-text text-3xl md:text-4xl">{event.title}</h2>
+              <p className="text-app-muted mt-2 text-sm">{event.description}</p>
+              <div className="flex items-center gap-2 text-app-muted text-sm mt-3">
+                <MapPin className="w-4 h-4 text-app-cyan" />
+                <span>{event.location}</span>
+              </div>
+            </div>
+          </div>
         )}
-        <div className={isCompact ? "" : "relative"}>
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <span className="px-3 py-1 rounded-full bg-cyan-500/20 text-app-cyan text-xs">{event.locationType}</span>
-            <span className="px-3 py-1 rounded-full bg-app-surface border border-app-border text-app-text text-xs">
-              {formatEventPricingLabel(event)}
-            </span>
-            {event.allowGuests && (
-              <span className="px-3 py-1 rounded-full bg-fuchsia-500/20 text-app-fuchsia text-xs">Guests allowed</span>
-            )}
-          </div>
-          <h2 className={`font-black text-app-text ${isCompact ? "text-2xl" : "text-4xl"}`}>{event.title}</h2>
-          <p className="text-app-muted mt-2 text-sm">{event.description}</p>
-          <div className="flex items-center gap-2 text-app-muted text-sm mt-3">
-            <MapPin className="w-4 h-4 text-app-cyan" />
-            <span>{event.location}</span>
-          </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-6">

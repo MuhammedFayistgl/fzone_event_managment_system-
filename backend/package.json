@@ -18,7 +18,10 @@
     "registrations:cleanup": "node scripts/cleanupOrphanRegistrations.js --confirm",
     "audit:backfill": "node scripts/backfillAuditLogs.js",
     "audit:backfill:dry": "node scripts/backfillAuditLogs.js --dry-run",
-    "test:investor-import": "node scripts/testInvestorImportValidation.js"
+    "test:investor-import": "node scripts/testInvestorImportValidation.js",
+    "migrate:atlas": "node scripts/migrateLocalToAtlas.js",
+    "test:atlas": "node scripts/testAtlasConnection.js",
+    "env:render": "node scripts/generateRenderEnv.js"
   },
   "keywords": [],
   "author": "",

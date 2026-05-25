@@ -16,6 +16,10 @@ backend/node_modules/
 .env.local
 .env.development
 .env.production
+.env.render.local
+.env.vercel.local
+backend/.env.render.local
+frontend/.env.vercel.local
 
 # Build files
 dist/

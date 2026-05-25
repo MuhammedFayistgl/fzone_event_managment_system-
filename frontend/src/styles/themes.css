@@ -119,6 +119,10 @@ body {
   position: fixed;
 }
 
+.app-page-layout--embedded:has(.event-attendance-page)::before {
+  content: none;
+}
+
 .app-page-layout__inner {
   position: relative;
   z-index: 1;

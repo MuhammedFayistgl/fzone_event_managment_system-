@@ -1,0 +1,40 @@
+# Render Blueprint — free tier backend
+# Dashboard: New → Blueprint → connect repo, or link this file manually.
+services:
+  - type: web
+    name: fzone-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: node index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_SERVER_IP
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: ACCESS_SECRET
+        generateValue: true
+      - key: REFRESH_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: ALLOW_ADMIN_SIGNUP
+        value: "false"
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false

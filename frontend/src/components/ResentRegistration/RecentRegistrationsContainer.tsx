@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import toast from "react-hot-toast";
 import RecentRegistrationsUI from "../RecentRegistrationsUI";
 import AppPageLayout from "../../layouts/AppPageLayout";
 import API from "../../api/axios";
@@ -13,8 +14,9 @@ type Props = {
   mode?: "preview" | "full";
 };
 
-type RegistrationRow = {
+export type RegistrationRow = {
   id: string;
+  eventId?: string;
   name: string;
   phone: string;
   category: string;
@@ -22,14 +24,24 @@ type RegistrationRow = {
   checkIn: boolean;
   time: string | Date;
   eventTitle?: string;
+  guestCount?: number;
 };
+
+const PAGE_SIZE = 50;
 
 const RecentRegistrationsContainer: React.FC<Props> = ({ mode = "preview" }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<RegistrationRow[]>([]);
+  const [pagination, setPagination] = useState<{
+    total: number;
+    totalPages: number;
+    page: number;
+    limit: number;
+  } | null>(null);
   const { highlightId } = useNotificationHighlightParam();
   const isHighlighted = useHighlightMatcher(highlightId);
 
@@ -50,20 +62,38 @@ const RecentRegistrationsContainer: React.FC<Props> = ({ mode = "preview" }) => 
     const urlSearch = searchParams.get("search")?.trim();
     if (urlSearch && mode === "full") {
       setSearch(urlSearch);
+      setPage(1);
     }
   }, [mode, searchParams]);
 
-  useEffect(() => {
+  const fetchRows = useCallback(() => {
     setLoading(true);
     API.post("/admin/all-registrations", {
-      page: 1,
-      limit: mode === "preview" ? 8 : 100,
+      page,
+      limit: mode === "preview" ? 8 : PAGE_SIZE,
       search: search.trim() || undefined,
     })
-      .then((res) => setRows(res.data?.data?.registrations || []))
-      .catch(() => setRows([]))
+      .then((res) => {
+        const registrations = res.data?.data?.registrations || [];
+        const pg = res.data?.data?.pagination || null;
+        setRows(registrations);
+        setPagination(pg);
+      })
+      .catch(() => {
+        setRows([]);
+        setPagination(null);
+      })
       .finally(() => setLoading(false));
-  }, [mode, search]);
+  }, [mode, page, search]);
+
+  useEffect(() => {
+    fetchRows();
+  }, [fetchRows]);
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
 
   const filtered = useMemo(() => rows, [rows]);
 
@@ -75,6 +105,15 @@ const RecentRegistrationsContainer: React.FC<Props> = ({ mode = "preview" }) => 
     downloadRegistrationsCsv(exportRows);
   };
 
+  const handleView = (row: RegistrationRow) => {
+    if (!row.eventId) {
+      toast.error("Event not linked to this registration");
+      return;
+    }
+    const q = row.phone ? `?search=${encodeURIComponent(row.phone)}` : "";
+    navigate(`/event-attendance/${row.eventId}${q}`);
+  };
+
   const content = (
     <RecentRegistrationsUI
       preview={mode === "preview"}
@@ -82,9 +121,13 @@ const RecentRegistrationsContainer: React.FC<Props> = ({ mode = "preview" }) => 
       filtered={filtered}
       loading={loading}
       search={search}
-      setSearch={setSearch}
+      setSearch={handleSearchChange}
       onExport={mode === "full" ? handleExport : undefined}
       isHighlighted={mode === "full" ? isHighlighted : undefined}
+      pagination={pagination}
+      page={page}
+      onPageChange={setPage}
+      onView={mode === "full" ? handleView : undefined}
     />
   );
 

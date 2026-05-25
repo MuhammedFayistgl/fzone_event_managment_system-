@@ -211,7 +211,7 @@ function App() {
         path="/event-attendance/:id"
         element={
           <ProtectedRoute roles={SCANNER_ROLES}>
-            <AdminShell>
+            <AdminShell showGlow={false}>
               <SuspensePage>
                 <EventAttendanceDetails />
               </SuspensePage>

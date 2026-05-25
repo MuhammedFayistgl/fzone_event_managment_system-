@@ -8,7 +8,7 @@ const EventAttendanceDetails = () => {
   const navigate = useNavigate();
 
   return (
-    <AppPageLayout showGlow embedded className="!overflow-visible">
+    <AppPageLayout showGlow={false} embedded>
       <button
         type="button"
         onClick={() => navigate(-1)}
@@ -17,7 +17,9 @@ const EventAttendanceDetails = () => {
         <ArrowLeft size={16} />
         Back
       </button>
-      <EventRegistrationPanel eventId={id} variant="full" />
+      <div className="event-attendance-page">
+        <EventRegistrationPanel eventId={id} variant="full" />
+      </div>
     </AppPageLayout>
   );
 };
