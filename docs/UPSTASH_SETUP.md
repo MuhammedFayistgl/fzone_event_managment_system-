@@ -1,4 +1,8 @@
-# Upstash Redis (free tier)
+# Upstash Redis (free tier, optional)
+
+Redis is **optional**. Without `REDIS_URL`, the app starts normally — cache is disabled and refund locks use an in-memory fallback (fine for single-instance Render free tier).
+
+To enable Redis caching:
 
 1. Sign up: https://upstash.com
 2. Create Redis database (region: closest to Render — e.g. ap-south-1)
@@ -11,5 +15,3 @@
    REDIS_URL=rediss://default:...@....upstash.io:6379
    ```
 5. Redeploy backend
-
-If Redis is unavailable, the app still starts (cache disabled) — see `backend/index.js`.

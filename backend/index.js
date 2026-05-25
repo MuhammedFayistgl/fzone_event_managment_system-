@@ -22,7 +22,7 @@ import { ensureTicketBgDir } from "./utils/ticketBackground.js";
 import { initLiveHub } from "./live/liveHub.js";
 import { validateEnv, isProduction } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
-import { getRedisClient } from "./config/redis.js";
+import { getRedisClient, isRedisEnabled } from "./config/redis.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -101,13 +101,22 @@ app.get("/health", async (_req, res) => {
     mongo: "connected",
   };
 
-  try {
-    const redis = await getRedisClient();
-    await redis.ping();
-    health.redis = "connected";
-  } catch {
-    health.redis = "disconnected";
-    health.status = "degraded";
+  if (!isRedisEnabled()) {
+    health.redis = "disabled";
+  } else {
+    try {
+      const redis = await getRedisClient();
+      if (!redis) {
+        health.redis = "disconnected";
+        health.status = "degraded";
+      } else {
+        await redis.ping();
+        health.redis = "connected";
+      }
+    } catch {
+      health.redis = "disconnected";
+      health.status = "degraded";
+    }
   }
 
   res.status(health.status === "ok" ? 200 : 503).json(health);
@@ -133,11 +142,19 @@ ConnectionDB()
     await ensureTicketBgDir();
     startPaymentCleanupJob();
 
-    try {
-      await getRedisClient();
-      console.log("Redis connected ✅");
-    } catch (err) {
-      console.warn("Redis unavailable — cache disabled:", err.message);
+    if (!isRedisEnabled()) {
+      console.log("Redis disabled — cache off");
+    } else {
+      try {
+        const redis = await getRedisClient();
+        if (redis) {
+          console.log("Redis connected ✅");
+        } else {
+          console.warn("Redis unavailable — cache disabled");
+        }
+      } catch (err) {
+        console.warn("Redis unavailable — cache disabled:", err.message);
+      }
     }
 
     const port = process.env.PORT || 8000;

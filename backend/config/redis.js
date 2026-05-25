@@ -1,22 +1,42 @@
 import { createClient } from "redis";
 
+const CONNECT_TIMEOUT_MS = 5_000;
+
 /** @type {import("redis").RedisClientType | null} */
 let client = null;
-/** @type {Promise<import("redis").RedisClientType> | null} */
+/** @type {Promise<import("redis").RedisClientType | null> | null} */
 let connectPromise = null;
 
+export function isRedisEnabled() {
+  return Boolean(process.env.REDIS_URL?.trim());
+}
+
 export async function getRedisClient() {
+  if (!isRedisEnabled()) return null;
   if (client?.isOpen) return client;
 
   if (!connectPromise) {
     connectPromise = (async () => {
-      const url = process.env.REDIS_URL || "redis://127.0.0.1:6379";
+      const url = process.env.REDIS_URL.trim();
       const next = createClient({ url });
       next.on("error", (err) => console.error("Redis error:", err.message));
-      await next.connect();
+
+      await Promise.race([
+        next.connect(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Redis connect timeout (${CONNECT_TIMEOUT_MS}ms)`)),
+            CONNECT_TIMEOUT_MS
+          )
+        ),
+      ]);
+
       client = next;
       return next;
-    })().finally(() => {
+    })().catch((err) => {
+      console.warn("Redis connect failed:", err.message);
+      return null;
+    }).finally(() => {
       connectPromise = null;
     });
   }
@@ -27,6 +47,7 @@ export async function getRedisClient() {
 export async function redisGet(key) {
   try {
     const redis = await getRedisClient();
+    if (!redis) return null;
     return redis.get(key);
   } catch (err) {
     console.warn("Redis GET failed:", err.message);
@@ -37,6 +58,7 @@ export async function redisGet(key) {
 export async function redisSetEx(key, ttlSeconds, value) {
   try {
     const redis = await getRedisClient();
+    if (!redis) return false;
     await redis.setEx(key, ttlSeconds, value);
     return true;
   } catch (err) {
@@ -48,6 +70,7 @@ export async function redisSetEx(key, ttlSeconds, value) {
 export async function redisDel(keys) {
   try {
     const redis = await getRedisClient();
+    if (!redis) return;
     const list = Array.isArray(keys) ? keys : [keys];
     if (!list.length) return;
     await redis.del(...list);
@@ -60,6 +83,7 @@ export async function redisDel(keys) {
 export async function redisDeleteByPattern(pattern) {
   try {
     const redis = await getRedisClient();
+    if (!redis) return;
     for await (const keys of redis.scanIterator({ MATCH: pattern, COUNT: 100 })) {
       const batch = Array.isArray(keys) ? keys : [keys];
       if (batch.length) {
@@ -76,9 +100,9 @@ export default {
   get isOpen() {
     return Boolean(client?.isOpen);
   },
-  get: (...args) => getRedisClient().then((r) => r.get(...args)),
-  setEx: (...args) => getRedisClient().then((r) => r.setEx(...args)),
-  del: (...args) => getRedisClient().then((r) => r.del(...args)),
+  get: (...args) => getRedisClient().then((r) => (r ? r.get(...args) : null)),
+  setEx: (...args) => getRedisClient().then((r) => (r ? r.setEx(...args) : false)),
+  del: (...args) => getRedisClient().then((r) => (r ? r.del(...args) : undefined)),
   keys: async () => {
     console.warn("redis.keys() is deprecated — use redisDeleteByPattern");
     return [];
