@@ -8,7 +8,8 @@ let client = null;
 let connectPromise = null;
 
 export function isRedisEnabled() {
-  return Boolean(process.env.REDIS_URL?.trim());
+  const url = process.env.REDIS_URL?.trim();
+  return Boolean(url && /^rediss?:\/\//i.test(url));
 }
 
 export async function getRedisClient() {

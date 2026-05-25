@@ -63,35 +63,7 @@ app.use(
 
 app.use(isDev ? logger("dev") : logger("combined"));
 
-app.post(
-  "/user/razorpay-webhook",
-  express.raw({ type: "application/json" }),
-  razorpayWebhook
-);
-
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
-
-app.use(
-  cors({
-    credentials: true,
-    origin(origin, callback) {
-      if (!origin) {
-        if (isDev) return callback(null, true);
-        return callback(new Error("CORS not allowed: missing origin"));
-      }
-      if (corsAllowList.includes(origin) || isAllowedDevOrigin(origin)) {
-        return callback(null, true);
-      }
-      console.warn("CORS blocked origin:", origin);
-      return callback(new Error(`CORS not allowed: ${origin}`));
-    },
-  })
-);
-
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
+// Before CORS — Render/load balancers hit /health without an Origin header
 app.get("/health", async (_req, res) => {
   const health = {
     status: "ok",
@@ -121,6 +93,35 @@ app.get("/health", async (_req, res) => {
 
   res.status(health.status === "ok" ? 200 : 503).json(health);
 });
+
+app.post(
+  "/user/razorpay-webhook",
+  express.raw({ type: "application/json" }),
+  razorpayWebhook
+);
+
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser());
+
+app.use(
+  cors({
+    credentials: true,
+    origin(origin, callback) {
+      if (!origin) {
+        if (isDev) return callback(null, true);
+        return callback(new Error("CORS not allowed: missing origin"));
+      }
+      if (corsAllowList.includes(origin) || isAllowedDevOrigin(origin)) {
+        return callback(null, true);
+      }
+      console.warn("CORS blocked origin:", origin);
+      return callback(new Error(`CORS not allowed: ${origin}`));
+    },
+  })
+);
+
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use("/", indexRouter);
 app.use("/admin", adminRouter);
