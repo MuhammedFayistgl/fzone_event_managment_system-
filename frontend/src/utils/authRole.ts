@@ -82,16 +82,3 @@ export function hasPermission(
   }
   return false;
 }
-
-export function canAccessStaffTool(
-  permissions: string[],
-  roles: string[],
-  role: string | null = getRoleFromToken()
-): boolean {
-  if (!role) return false;
-  if (roles.includes(role)) {
-    if (role === "super_admin") return true;
-    if (role === "scanner" || role === "finance") return true;
-  }
-  return false;
-}

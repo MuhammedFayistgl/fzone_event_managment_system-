@@ -7,16 +7,21 @@ export const setAccessToken = (token: string | null) => {
   accessToken = token;
 };
 
+const PROD_API_FALLBACK = "https://fzone-api.onrender.com";
+
 /**
  * Dev: same-origin via Vite proxy (HTTPS laptop + mobile, no mixed-content).
- * Prod: set VITE_API_BASE_URL in .env
+ * Prod: VITE_API_BASE_URL in Vercel env, or fallback to Render API URL.
  */
 export const resolveBaseURL = () => {
   const envUrl =
     import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
 
-  if (import.meta.env.PROD && envUrl) {
-    return String(envUrl).replace(/\/$/, "");
+  if (import.meta.env.PROD) {
+    if (envUrl) {
+      return String(envUrl).replace(/\/$/, "");
+    }
+    return PROD_API_FALLBACK;
   }
 
   if (import.meta.env.DEV) {
