@@ -8,6 +8,8 @@ import AppPageLayout from "../layouts/AppPageLayout";
 import { useAppDispatch, useAppSelector } from "../hooks/hooks";
 import { setTheme, type ThemeMode } from "../redux/store/slices/themeSlice";
 import API from "../api/axios";
+import StaffAccountsSection from "../features/staff/StaffAccountsSection";
+import { getRoleFromToken } from "../utils/authRole";
 
 const themes: { id: ThemeMode; label: string; description: string; icon: typeof Sun }[] = [
   {
@@ -83,6 +85,7 @@ const PICKER_PROPS = {
 export default function SettingsPage() {
   const dispatch = useAppDispatch();
   const current = useAppSelector((s) => s.theme.mode);
+  const isAdmin = getRoleFromToken() === "admin";
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
   const [gateInput, setGateInput] = useState("");
   const [saving, setSaving] = useState(false);
@@ -159,6 +162,8 @@ export default function SettingsPage() {
             })}
           </div>
         </section>
+
+        {isAdmin && <StaffAccountsSection />}
 
         {settings && (
           <>

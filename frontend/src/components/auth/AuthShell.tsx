@@ -128,12 +128,7 @@ export default function AuthShell({
 
             <p className="auth-shell__footer">
               {mode === "login" ? (
-                <>
-                  Need an account?{" "}
-                  <Link to="/signup" className="auth-shell__link">
-                    Create staff account
-                  </Link>
-                </>
+                <>Need access? Contact your platform administrator.</>
               ) : (
                 <>
                   Already have access?{" "}

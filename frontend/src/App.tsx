@@ -4,7 +4,6 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import AdminShell from "./layouts/AdminShell";
 import PublicShell from "./layouts/PublicShell";
 import { setAccessToken } from "./api/axios";
-import SignupComponent from "./login/SiginComponent";
 import LoginComponent from "./login/LoginComponent";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
 import EventRegisterPage from "./pages/EventRegisterPage";
@@ -64,7 +63,7 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginComponent />} />
-      <Route path="/signup" element={<SignupComponent />} />
+      <Route path="/signup" element={<Navigate to="/login" replace />} />
 
       <Route
         path="/event/:id"

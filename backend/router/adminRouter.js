@@ -101,6 +101,8 @@ import {
   investorImportUpload,
 } from "../middleware/investorImportUpload.middleware.js";
 
+import { listStaff, createStaff } from "../controllers/staffController.js";
+
 const router = express.Router();
 
 /** Admin routes are always protected — no env bypass. */
@@ -195,6 +197,8 @@ router.patch(
 // Platform / SaaS
 router.get("/platform/settings", ...protectAdmin, getPlatformSettings);
 router.patch("/platform/settings", ...protectAdmin, patchPlatformSettings);
+router.get("/platform/staff", ...protectAdmin, listStaff);
+router.post("/platform/staff", ...protectAdmin, createStaff);
 router.get("/platform/audit-logs/summary", ...protectAdmin, getAuditLogSummary);
 router.get("/platform/audit-logs/analytics", ...protectAdmin, getAuditLogAnalytics);
 router.post("/platform/audit-logs/export", ...protectAdmin, exportAuditLogsHandler);
