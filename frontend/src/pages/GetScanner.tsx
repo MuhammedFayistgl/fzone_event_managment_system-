@@ -18,6 +18,9 @@ import {
     Loader2,
     RotateCcw,
     ScanLine,
+    Settings2,
+    ChevronDown,
+    Volume2,
 } from "lucide-react";
 import './scannerStyle.css'
 
@@ -38,6 +41,19 @@ import {
 import { resetScannerState } from "../redux/Slice/qrScannerSlice";
 import { getRegistrationInvestorName } from "../utils/getRegistrationInvestorName";
 import API from "../api/axios";
+import {
+    classifyScanError,
+    classifyVerifyQrError,
+    DEFAULT_ANNOUNCEMENTS,
+    loadScannerAnnouncePrefs,
+    saveScannerAnnouncePrefs,
+    SCAN_OUTCOMES,
+    SCAN_OUTCOME_LABELS,
+    testScanFeedback,
+    triggerScanFeedback,
+    type ScanOutcome,
+    type ScannerAnnouncePrefs,
+} from "../utils/scannerFeedback";
 
 
 
@@ -54,6 +70,11 @@ const GateScannerUltra = () => {
     const scanningLock = useRef(false);
 
     const timeoutRef = useRef<any>(null);
+
+    const announcePrefsRef =
+        useRef<ScannerAnnouncePrefs>(
+            loadScannerAnnouncePrefs()
+        );
 
     // ======================================================
     // STORE
@@ -98,6 +119,22 @@ const GateScannerUltra = () => {
         () => localStorage.getItem("scannerGate") || "Main Gate"
     );
 
+    const [announceOpen, setAnnounceOpen] =
+        useState(false);
+
+    const [announcePrefs, setAnnouncePrefs] =
+        useState<ScannerAnnouncePrefs>(
+            () => loadScannerAnnouncePrefs()
+        );
+
+    const [announceDraft, setAnnounceDraft] =
+        useState<ScannerAnnouncePrefs>(
+            () => loadScannerAnnouncePrefs()
+        );
+
+    const [statusMessage, setStatusMessage] =
+        useState("");
+
     useEffect(() => {
         API.get("/admin/platform/gates")
             .then((res) => {
@@ -115,6 +152,10 @@ const GateScannerUltra = () => {
     useEffect(() => {
         localStorage.setItem("scannerGate", selectedGate);
     }, [selectedGate]);
+
+    useEffect(() => {
+        announcePrefsRef.current = announcePrefs;
+    }, [announcePrefs]);
 
     // ======================================================
     // CLEANUP ON UNMOUNT (camera must start via user tap on mobile)
@@ -264,9 +305,18 @@ const GateScannerUltra = () => {
 
                         if (result?.success) {
 
-                            playSuccessSound();
+                            const holderName =
+                                result?.data?.holderName ||
+                                getRegistrationInvestorName(result?.data);
+
+                            void triggerScanFeedback(
+                                "success",
+                                announcePrefsRef.current,
+                                { name: holderName }
+                            );
 
                             setStatus("success");
+                            setStatusMessage("Access Granted");
 
                             toast.success(
                                 "Check-in Successful"
@@ -274,23 +324,46 @@ const GateScannerUltra = () => {
 
                         } else {
 
-                            throw new Error(
-                                result?.message
-                            );
+                            throw result;
 
                         }
 
                     } catch (err: any) {
 
-                        // =====================================
-                        // ERROR
-                        // =====================================
+                        const payload =
+                            err && typeof err === "object"
+                                ? err
+                                : undefined;
 
-                        playErrorSound();
+                        const outcome: ScanOutcome =
+                            payload?.alreadyCheckedIn !== undefined ||
+                            payload?.blocked !== undefined ||
+                            payload?.message
+                                ? classifyVerifyQrError(
+                                      payload,
+                                      err?.message
+                                  )
+                                : classifyScanError(err);
+
+                        const holderName =
+                            payload?.data?.holderName ||
+                            getRegistrationInvestorName(payload?.data);
+
+                        void triggerScanFeedback(
+                            outcome,
+                            announcePrefsRef.current,
+                            { name: holderName }
+                        );
 
                         setStatus("error");
+                        setStatusMessage(
+                            payload?.message ||
+                            err?.message ||
+                            "Scan failed"
+                        );
 
                         toast.error(
+                            payload?.message ||
                             err?.message ||
                             "Invalid QR"
                         );
@@ -431,43 +504,73 @@ const GateScannerUltra = () => {
 
         setStatus("idle");
 
+        setStatusMessage("");
+
         setLastToken("");
 
         scanningLock.current = false;
 
     };
 
-    // ======================================================
-    // SOUND EFFECTS
-    // ======================================================
-
-    const playSuccessSound = () => {
-
-        const audio = new Audio(
-            "/sounds/success.mp3"
-        );
-
-        audio.volume = 0.7;
-
-        audio.play();
-
+    const handleSaveAnnounce = () => {
+        saveScannerAnnouncePrefs(announceDraft);
+        setAnnouncePrefs(announceDraft);
+        toast.success("Announce settings saved");
     };
 
-    const playErrorSound = () => {
-
-        const audio = new Audio(
-            "/sounds/error.mp3"
-        );
-
-        audio.volume = 0.7;
-
-        audio.play();
-
+    const handleResetAnnounce = () => {
+        const next = {
+            ...announcePrefs,
+            customMessages: {},
+        };
+        setAnnounceDraft(next);
+        setAnnouncePrefs(next);
+        saveScannerAnnouncePrefs(next);
+        toast.success("Announce messages reset to defaults");
     };
+
+    const updateDraftMessage = (
+        outcome: ScanOutcome,
+        value: string
+    ) => {
+        setAnnounceDraft((prev) => {
+            const trimmed = value.trim();
+            const isDefault =
+                trimmed === DEFAULT_ANNOUNCEMENTS[outcome];
+
+            if (!trimmed || isDefault) {
+                const { [outcome]: _, ...rest } =
+                    prev.customMessages;
+                return {
+                    ...prev,
+                    customMessages: rest,
+                };
+            }
+
+            return {
+                ...prev,
+                customMessages: {
+                    ...prev.customMessages,
+                    [outcome]: value,
+                },
+            };
+        });
+    };
+
+    const getDraftMessage = (outcome: ScanOutcome) =>
+        announceDraft.customMessages[outcome]?.trim() ||
+        DEFAULT_ANNOUNCEMENTS[outcome];
 
     // ======================================================
     // UI
     // ======================================================
+
+    const statusOverlayTitle =
+        status === "success"
+            ? "Access Granted"
+            : status === "error"
+              ? statusMessage || "Scan failed"
+              : "";
 
     return (
 
@@ -518,6 +621,148 @@ const GateScannerUltra = () => {
                         Secure QR Verification System
                     </p>
 
+                </div>
+
+                {/* ===================================== */}
+                {/* ANNOUNCE SETTINGS */}
+                {/* ===================================== */}
+                <div className="scanner-announce mb-5">
+                    <button
+                        type="button"
+                        onClick={() => setAnnounceOpen((v) => !v)}
+                        className="scanner-announce__toggle"
+                    >
+                        <span className="flex items-center gap-2">
+                            <Settings2 size={16} className="text-cyan-400" />
+                            <Volume2 size={16} className="text-cyan-400" />
+                            Announce settings
+                        </span>
+                        <ChevronDown
+                            size={18}
+                            className={clsx(
+                                "text-app-muted transition-transform",
+                                announceOpen && "rotate-180"
+                            )}
+                        />
+                    </button>
+
+                    <AnimatePresence>
+                        {announceOpen && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="scanner-announce__panel"
+                            >
+                                <div className="scanner-announce__toggles">
+                                    <label className="scanner-announce__toggle-row">
+                                        <span>Sound</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={announceDraft.soundEnabled}
+                                            onChange={(e) =>
+                                                setAnnounceDraft((prev) => ({
+                                                    ...prev,
+                                                    soundEnabled: e.target.checked,
+                                                }))
+                                            }
+                                        />
+                                    </label>
+                                    <label className="scanner-announce__toggle-row">
+                                        <span>Voice announce</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={announceDraft.voiceEnabled}
+                                            onChange={(e) =>
+                                                setAnnounceDraft((prev) => ({
+                                                    ...prev,
+                                                    voiceEnabled: e.target.checked,
+                                                }))
+                                            }
+                                        />
+                                    </label>
+                                </div>
+
+                                <label className="scanner-announce__volume">
+                                    <span>Volume</span>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={1}
+                                        step={0.05}
+                                        value={announceDraft.volume}
+                                        onChange={(e) =>
+                                            setAnnounceDraft((prev) => ({
+                                                ...prev,
+                                                volume: Number(e.target.value),
+                                            }))
+                                        }
+                                    />
+                                </label>
+
+                                <div className="scanner-announce__messages">
+                                    {SCAN_OUTCOMES.map((outcome) => (
+                                        <div
+                                            key={outcome}
+                                            className="scanner-announce__message-row"
+                                        >
+                                            <label className="scanner-announce__message-label">
+                                                {SCAN_OUTCOME_LABELS[outcome]}
+                                            </label>
+                                            <div className="scanner-announce__message-input">
+                                                <input
+                                                    type="text"
+                                                    value={getDraftMessage(outcome)}
+                                                    placeholder={
+                                                        DEFAULT_ANNOUNCEMENTS[outcome]
+                                                    }
+                                                    onChange={(e) =>
+                                                        updateDraftMessage(
+                                                            outcome,
+                                                            e.target.value
+                                                        )
+                                                    }
+                                                />
+                                                <button
+                                                    type="button"
+                                                    className="scanner-announce__test-btn"
+                                                    onClick={() =>
+                                                        void testScanFeedback(
+                                                            outcome,
+                                                            announceDraft,
+                                                            getDraftMessage(outcome)
+                                                        )
+                                                    }
+                                                >
+                                                    Test
+                                                </button>
+                                            </div>
+                                            <p className="scanner-announce__hint">
+                                                Use {"{name}"} for holder name
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="scanner-announce__actions">
+                                    <button
+                                        type="button"
+                                        className="scanner-announce__btn scanner-announce__btn--ghost"
+                                        onClick={handleResetAnnounce}
+                                    >
+                                        Reset defaults
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="scanner-announce__btn scanner-announce__btn--primary"
+                                        onClick={handleSaveAnnounce}
+                                    >
+                                        Save
+                                    </button>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
                 {/* ===================================== */}
                 {/* USER CARD */}
@@ -897,8 +1142,8 @@ const GateScannerUltra = () => {
                                             className="text-green-400"
                                         />
 
-                                        <p className="mt-4 text-lg font-semibold text-app-text">
-                                            Access Granted
+                                        <p className="mt-4 text-lg font-semibold text-app-text text-center px-4">
+                                            {statusOverlayTitle}
                                         </p>
 
                                     </div>
@@ -916,8 +1161,8 @@ const GateScannerUltra = () => {
                                             className="text-red-400"
                                         />
 
-                                        <p className="mt-4 text-lg font-semibold text-app-text">
-                                            Invalid QR
+                                        <p className="mt-4 text-lg font-semibold text-app-text text-center px-4">
+                                            {statusOverlayTitle}
                                         </p>
 
                                     </div>

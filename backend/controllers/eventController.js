@@ -11,6 +11,11 @@ import {
 import { applyPricingToPayload, validatePricingPayload } from "../utils/pricing.js";
 import { logAuditAction } from "../utils/auditLog.js";
 import { createNotification } from "../services/notificationService.js";
+import {
+  processEventDays,
+  getScheduleBounds,
+  validateRegistrationWindow,
+} from "../utils/eventDays.js";
 
 
 
@@ -44,58 +49,20 @@ export const createEvent = async (req, res) => {
       });
     }
 
-    const processedDays = [];
+    const dayResult = processEventDays(data.eventDays);
+    if (dayResult.error) {
+      return res.status(400).json({ success: false, message: dayResult.error });
+    }
+    const processedDays = dayResult.days;
 
-    for (let i = 0; i < data.eventDays.length; i++) {
-      const d = data.eventDays[i];
-
-      if (!d.date || !d.startTime || !d.endTime) {
-        return res.status(400).json({
-          success: false,
-          message: `Invalid event day at index ${i}`
-        });
-      }
-
-      // ✅ Combine date + time properly
-      const start = new Date(`${d.date}T${d.startTime}`);
-      let end = new Date(`${d.date}T${d.endTime}`);
-
-      // ❌ Invalid Date check (VERY IMPORTANT)
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        return res.status(400).json({
-          success: false,
-          message: `Invalid date/time format at day ${i + 1}`
-        });
-      }
-
-      // ✅ Overnight support
-      if (end <= start) {
-        end.setDate(end.getDate() + 1);
-      }
-
-      // ❌ Still invalid (safety)
-      if (end <= start) {
-        return res.status(400).json({
-          success: false,
-          message: `Invalid time range at day ${i + 1}`
-        });
-      }
-
-      // ❌ Prevent unrealistic duration
-      const diffHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-
-      if (diffHours > 24) {
-        return res.status(400).json({
-          success: false,
-          message: `Event duration too long (day ${i + 1})`
-        });
-      }
-
-      processedDays.push({
-        date: new Date(d.date),
-        startTime: start,
-        endTime: end
-      });
+    const scheduleBounds = getScheduleBounds(processedDays);
+    const regError = validateRegistrationWindow(
+      data.registrationStart,
+      data.registrationDeadline,
+      scheduleBounds
+    );
+    if (regError) {
+      return res.status(400).json({ success: false, message: regError });
     }
 
     // ================= PAYMENT =================
@@ -262,46 +229,28 @@ export const updateEvent = async (req, res) => {
     }
 
     // ================= REGISTRATION =================
-    if (data.registrationStart && data.registrationDeadline) {
-      const regStart = new Date(data.registrationStart);
-      const regEnd = new Date(data.registrationDeadline);
-
-      if (regEnd <= regStart) {
-        return res.status(400).json({
-          success: false,
-          message: "Registration deadline must be after start"
-        });
-      }
-    }
-
-    // ================= EVENT DAYS =================
     if (data.eventDays) {
-      if (!Array.isArray(data.eventDays) || data.eventDays.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: "At least one event day required"
-        });
+      const dayResult = processEventDays(data.eventDays);
+      if (dayResult.error) {
+        return res.status(400).json({ success: false, message: dayResult.error });
       }
 
-      for (let i = 0; i < data.eventDays.length; i++) {
-        const d = data.eventDays[i];
+      const scheduleBounds = getScheduleBounds(dayResult.days);
+      const regStart = data.registrationStart ?? existingEvent.registrationStart;
+      const regEnd = data.registrationDeadline ?? existingEvent.registrationDeadline;
+      const regError = validateRegistrationWindow(regStart, regEnd, scheduleBounds);
+      if (regError) {
+        return res.status(400).json({ success: false, message: regError });
+      }
 
-        if (!d.date || !d.startTime || !d.endTime) {
-          return res.status(400).json({
-            success: false,
-            message: `Invalid event day at index ${i}`
-          });
-        }
-
-        const start = new Date(d.startTime);
-        const end = new Date(d.endTime);
-
-        if (end <= start) {
-          return res.status(400).json({
-            success: false,
-            message: `End time must be after start time (day ${i + 1})`
-          });
-        }
+      data.eventDays = dayResult.days;
+    } else {
+      const scheduleBounds = getScheduleBounds(existingEvent.eventDays);
+      const regStart = data.registrationStart ?? existingEvent.registrationStart;
+      const regEnd = data.registrationDeadline ?? existingEvent.registrationDeadline;
+      const regError = validateRegistrationWindow(regStart, regEnd, scheduleBounds);
+      if (regError) {
+        return res.status(400).json({ success: false, message: regError });
       }
     }
 
@@ -328,11 +277,7 @@ export const updateEvent = async (req, res) => {
     // ================= UPDATE =================
     Object.keys(data).forEach((key) => {
       if (key === "eventDays") {
-        existingEvent.eventDays = data.eventDays.map((d) => ({
-          date: new Date(d.date),
-          startTime: new Date(d.startTime),
-          endTime: new Date(d.endTime)
-        }));
+        existingEvent.eventDays = data.eventDays;
       } else if (key === "ticketDesign" && data.ticketDesign) {
         existingEvent.ticketDesign = {
           ...existingEvent.ticketDesign?.toObject?.() ?? existingEvent.ticketDesign ?? {},

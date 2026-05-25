@@ -36,15 +36,15 @@ const eventSchema = new mongoose.Schema(
     },
 
     // ================= REGISTRATION =================
-    // registrationStart: {
-    //   type: Date,
-    //   required: true
-    // },
+    registrationStart: {
+      type: Date,
+      default: null,
+    },
 
-    // registrationDeadline: {
-    //   type: Date,
-    //   required: true
-    // },
+    registrationDeadline: {
+      type: Date,
+      default: null,
+    },
     // ================= REGISTRATION CONTROL =================
     isRegistrationClosed: {
       type: Boolean,

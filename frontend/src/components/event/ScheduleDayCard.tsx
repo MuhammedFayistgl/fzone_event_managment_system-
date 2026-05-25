@@ -1,5 +1,6 @@
 import { ArrowRight, CalendarDays, Clock, Trash2 } from "lucide-react";
-import ErrorMessage from "../EroorMessage";
+import FormFieldFeedback from "./FormFieldFeedback";
+import type { FieldFeedback } from "../../utils/eventFormValidation";
 import { ProDateField, ProTimeField } from "./ProDateTimePickers";
 
 export type ScheduleDay = {
@@ -37,6 +38,7 @@ type Props = {
   index: number;
   canRemove: boolean;
   errors?: { date?: string; startTime?: string; endTime?: string };
+  liveFeedback?: Partial<Record<"date" | "startTime" | "endTime", FieldFeedback>>;
   onDateChange: (value: Date | null) => void;
   onStartChange: (value: Date | null) => void;
   onEndChange: (value: Date | null) => void;
@@ -49,6 +51,7 @@ export default function ScheduleDayCard({
   index,
   canRemove,
   errors,
+  liveFeedback,
   onDateChange,
   onStartChange,
   onEndChange,
@@ -98,7 +101,7 @@ export default function ScheduleDayCard({
             onChange={onDateChange}
             minDate={minDate}
           />
-          <ErrorMessage msg={errors?.date} />
+          <FormFieldFeedback error={errors?.date} feedback={liveFeedback?.date} />
         </div>
 
         <div className="schedule-day-card__times">
@@ -114,7 +117,7 @@ export default function ScheduleDayCard({
               value={day.startTime}
               onChange={onStartChange}
             />
-            <ErrorMessage msg={errors?.startTime} />
+            <FormFieldFeedback error={errors?.startTime} feedback={liveFeedback?.startTime} />
           </div>
 
           <div className="schedule-day-card__time-divider" aria-hidden>
@@ -133,7 +136,7 @@ export default function ScheduleDayCard({
               value={day.endTime}
               onChange={onEndChange}
             />
-            <ErrorMessage msg={errors?.endTime} />
+            <FormFieldFeedback error={errors?.endTime} feedback={liveFeedback?.endTime} />
           </div>
         </div>
       </div>

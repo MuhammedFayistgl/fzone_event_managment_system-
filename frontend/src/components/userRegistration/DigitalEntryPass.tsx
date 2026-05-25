@@ -124,6 +124,7 @@ function PassCard({
       }`}
     >
       <div className="event-register-pass__glow" aria-hidden />
+      <div className="event-register-pass__ticket-edge" aria-hidden />
 
       <header className="event-register-pass__head">
         <div className="event-register-pass__head-main min-w-0">
@@ -251,6 +252,7 @@ function PassCard({
                   checkedIn ? " event-register-pass__qr-frame--locked" : ""
                 }${isBlocked ? " event-register-pass__qr-frame--blocked" : ""}`}
               >
+                <span className="event-register-pass__qr-corners" aria-hidden />
                 <img
                   src={qrCodeImage}
                   alt={`${isGuest ? "Guest" : "Investor"} entry QR code`}
@@ -258,13 +260,17 @@ function PassCard({
                 />
                 {checkedIn && (
                   <div className="event-register-pass__qr-lock">
-                    <Lock size={22} aria-hidden />
+                    <span className="event-register-pass__qr-lock-badge">
+                      <Lock size={22} aria-hidden />
+                    </span>
                     <span>Pass used</span>
                   </div>
                 )}
                 {isBlocked && !checkedIn && (
                   <div className="event-register-pass__qr-lock">
-                    <ShieldOff size={22} aria-hidden />
+                    <span className="event-register-pass__qr-lock-badge">
+                      <ShieldOff size={22} aria-hidden />
+                    </span>
                     <span>Blocked</span>
                   </div>
                 )}

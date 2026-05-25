@@ -164,7 +164,7 @@
 .finance-recon-sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 1300;
   background: rgba(15, 23, 42, 0.45);
 }
 
@@ -176,7 +176,7 @@
   position: fixed;
   top: 0;
   right: 0;
-  z-index: 70;
+  z-index: 1301;
   height: 100%;
   width: min(480px, 100vw);
   overflow-y: auto;

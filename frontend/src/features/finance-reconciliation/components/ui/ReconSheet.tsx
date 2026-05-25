@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
@@ -11,6 +12,12 @@ type Props = {
 };
 
 export function ReconSheet({ open, onClose, title, children }: Props) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -20,7 +27,9 @@ export function ReconSheet({ open, onClose, title, children }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -57,6 +66,7 @@ export function ReconSheet({ open, onClose, title, children }: Props) {
           </motion.aside>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

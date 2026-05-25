@@ -9,6 +9,7 @@ import {
   useHighlightMatcher,
   useNotificationHighlightParam,
 } from "../../hooks/useNotificationHighlight";
+import { useLiveAllRegistrationsSync } from "../../hooks/useLiveAllRegistrationsSync";
 
 type Props = {
   mode?: "preview" | "full";
@@ -96,6 +97,20 @@ const RecentRegistrationsContainer: React.FC<Props> = ({ mode = "preview" }) => 
   };
 
   const filtered = useMemo(() => rows, [rows]);
+
+  const patchLiveCheckIn = useCallback((registrationId: string) => {
+    setRows((prev) =>
+      prev.map((row) =>
+        String(row.id) === registrationId ? { ...row, checkIn: true } : row
+      )
+    );
+  }, []);
+
+  useLiveAllRegistrationsSync({
+    rows,
+    enabled: rows.length > 0,
+    onCheckIn: patchLiveCheckIn,
+  });
 
   const handleExport = async () => {
     const res = await API.post("/admin/all-registrations/export", {

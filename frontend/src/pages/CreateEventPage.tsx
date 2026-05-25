@@ -1,14 +1,13 @@
 import { useState, useEffect } from "react";
-import { Button } from "rsuite";
 import { AlertCircle, X } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "../hooks/hooks";
 import EventForm from "../components/event/EventForm";
-import EventFormPreview from "../components/event/EventFormPreview";
 import EventList from "../components/event/EventList";
 import { createEvent, fetchCreatedEvents, updateEvent } from "../redux/EventThunks";
 import { resetForm, setEditEventId, setFormData } from "../redux/EventSlice";
 import { eventSchema } from "../validators/eventSchema";
 import { normalizeZodErrors } from "../util/erorrNormalizer";
+import { getStepIndexForFieldPath } from "../components/event/eventWizardConfig";
 import toast from "react-hot-toast";
 import AppPageLayout from "../layouts/AppPageLayout";
 
@@ -33,6 +32,7 @@ export default function CreateEventPage() {
 
   const [errors, setErrors] = useState<Record<string, any>>({});
   const [formResetKey, setFormResetKey] = useState(0);
+  const [targetStepIndex, setTargetStepIndex] = useState<number | null>(null);
 
   const loadEvents = () => {
     dispatch(fetchCreatedEvents(""));
@@ -65,7 +65,8 @@ export default function CreateEventPage() {
 
       const firstError = result.error.issues[0];
       if (firstError?.path?.length) {
-        const field = firstError.path.join(".");
+        const field = firstError.path.map(String).join(".");
+        setTargetStepIndex(getStepIndexForFieldPath(field));
         const el = document.querySelector(`[name="${field}"]`);
         if (el) (el as HTMLElement).focus();
       }
@@ -93,12 +94,13 @@ export default function CreateEventPage() {
           const newId = res.payload?.data?._id;
           toast.success(
             newId
-              ? "Event published — upload ticket design below if needed"
+              ? "Event published — customize ticket design in the Ticket step"
               : "Event published successfully"
           );
           if (newId) {
             dispatch(setEditEventId(newId));
             dispatch(setFormData({ ...form, ticketDesign: form.ticketDesign }));
+            setTargetStepIndex(3);
           } else {
             dispatch(resetForm());
             setFormResetKey((k) => k + 1);
@@ -125,40 +127,38 @@ export default function CreateEventPage() {
         <div id="event-form-top" className="space-y-4">
           {editEventId && (
             <div className="event-edit-banner">
-              <span>Editing: <strong>{form.title || "Event"}</strong></span>
+              <span>
+                Editing: <strong>{form.title || "Event"}</strong>
+              </span>
               <button type="button" onClick={handleCancelEdit} className="event-edit-banner__cancel">
                 <X size={16} /> Cancel edit
               </button>
             </div>
           )}
 
-          <div className="app-card-raised p-4 lg:p-6 space-y-4">
+          <div className="app-card-raised event-wizard-card p-4 lg:p-5">
             {errorCount > 0 && (
-              <div className="event-error-summary" role="alert">
+              <div className="event-error-summary mb-3" role="alert">
                 <AlertCircle size={18} />
-                <span>{errorCount} field{errorCount !== 1 ? "s need" : " needs"} attention — scroll to fix highlighted errors.</span>
+                <span>
+                  {errorCount} field{errorCount !== 1 ? "s need" : " needs"} attention — check the highlighted step.
+                </span>
               </div>
             )}
 
-            <EventForm errors={errors} formResetKey={formResetKey} />
-            <EventFormPreview />
+            <EventForm
+              errors={errors}
+              formResetKey={formResetKey}
+              loading={loading}
+              editEventId={editEventId}
+              targetStepIndex={targetStepIndex}
+              onStepSynced={() => setTargetStepIndex(null)}
+              onSubmit={handleSubmit}
+              onClear={handleClearForm}
+              onCancelEdit={handleCancelEdit}
+            />
 
-            {apiError && <div className="text-red-400 text-sm">{apiError}</div>}
-
-            <div className="event-form-actions">
-              <Button appearance="primary" loading={loading} onClick={handleSubmit} block>
-                {editEventId ? "Update Event" : "Publish Event"}
-              </Button>
-              {editEventId ? (
-                <Button appearance="subtle" onClick={handleCancelEdit} block>
-                  Cancel edit
-                </Button>
-              ) : (
-                <Button appearance="subtle" onClick={handleClearForm} block>
-                  Clear form
-                </Button>
-              )}
-            </div>
+            {apiError && <div className="text-red-400 text-sm mt-3">{apiError}</div>}
           </div>
         </div>
 

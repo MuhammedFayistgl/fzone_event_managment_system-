@@ -239,10 +239,12 @@ export function ProDateTimeField({
   onChange,
   disabled,
   minDateTime,
+  maxDateTime,
 }: BaseProps & {
   value: Date | null;
   onChange: (value: Date | null) => void;
   minDateTime?: Date;
+  maxDateTime?: Date;
 }) {
   return (
     <DateTimePicker
@@ -252,6 +254,7 @@ export function ProDateTimeField({
       onChange={onChange}
       disabled={disabled}
       minDateTime={minDateTime}
+      maxDateTime={maxDateTime}
       format="MMM d, yyyy · h:mm aa"
       slotProps={fieldSlotProps(name, "default", <EventOutlinedIcon fontSize="small" />)}
       className="pro-mui-picker"

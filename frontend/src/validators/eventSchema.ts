@@ -1,21 +1,14 @@
 import { z } from "zod";
+import {
+  getEventScheduleBounds,
+  resolveEventDayRange,
+  startOfDay,
+} from "../utils/eventFormValidation";
 
-// ================= HELPERS =================
-const combineDateTime = (date: string, time: string) => {
-  return new Date(`${date}T${time}:00`); // ✅ FIXED (safe ISO)
-};
-
-const startOfDay = (date: string) => {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
-};
-
-// ================= SCHEMA =================
 const eventDaySchema = z.object({
   date: z.string().nullable(),
   startTime: z.string().nullable(),
-  endTime: z.string().nullable()
+  endTime: z.string().nullable(),
 });
 
 export const eventSchema = z
@@ -23,12 +16,13 @@ export const eventSchema = z
     title: z
       .string()
       .min(3, "Title must be at least 3 characters")
-      .regex(/^[\p{L}0-9\s]+$/u, "Title should not contain special characters"), // ✅ multi-language support
+      .max(80, "Title cannot exceed 80 characters")
+      .regex(/^[\p{L}0-9\s]+$/u, "Title should not contain special characters"),
 
     description: z
       .string()
       .min(10, "Description must be at least 10 characters")
-      .max(500, "Description too long"), // ✅ safe limit
+      .max(500, "Description cannot exceed 500 characters"),
 
     eventDays: z.array(eventDaySchema).min(1, "Add at least one event day"),
 
@@ -54,40 +48,32 @@ export const eventSchema = z
 
     locationType: z.enum(["online", "offline"]),
 
-    location: z
-      .string()
-      .trim()
-      .min(1, "Location required") // ✅ trim added
+    location: z.string().trim().min(1, "Location required"),
   })
 
   .superRefine((data, ctx) => {
-    const today = startOfDay(new Date().toDateString());
+    const today = startOfDay(new Date());
 
-    let firstEventDate: Date | null = null;
-
-    // ================= EVENT DAYS =================
     data.eventDays.forEach((day, i) => {
       if (!day.date) {
         ctx.addIssue({
           path: ["eventDays", i, "date"],
           code: "custom",
-          message: "Please select event date"
+          message: "Please select event date",
         });
         return;
       }
 
       const eventDate = new Date(day.date);
 
-      // ❗ Past date block
       if (startOfDay(day.date) < today) {
         ctx.addIssue({
           path: ["eventDays", i, "date"],
           code: "custom",
-          message: "Event date cannot be in the past"
+          message: "Event date cannot be in the past",
         });
       }
 
-      // ❗ Future limit (1 year)
       const maxFuture = new Date();
       maxFuture.setFullYear(maxFuture.getFullYear() + 1);
 
@@ -95,19 +81,15 @@ export const eventSchema = z
         ctx.addIssue({
           path: ["eventDays", i, "date"],
           code: "custom",
-          message: "Event date is too far in the future"
+          message: "Event date is too far in the future",
         });
-      }
-
-      if (!firstEventDate || eventDate < firstEventDate) {
-        firstEventDate = eventDate;
       }
 
       if (!day.startTime) {
         ctx.addIssue({
           path: ["eventDays", i, "startTime"],
           code: "custom",
-          message: "Select start time"
+          message: "Select start time",
         });
       }
 
@@ -115,69 +97,114 @@ export const eventSchema = z
         ctx.addIssue({
           path: ["eventDays", i, "endTime"],
           code: "custom",
-          message: "Select end time"
+          message: "Select end time",
         });
       }
 
- if (day.startTime && day.endTime && day.date) {
-  const start = combineDateTime(day.date, day.startTime);
-  let end = combineDateTime(day.date, day.endTime);
+      if (day.startTime && day.endTime && day.date) {
+        const range = resolveEventDayRange(day);
+        if (!range) {
+          ctx.addIssue({
+            path: ["eventDays", i, "endTime"],
+            code: "custom",
+            message: "Invalid date or time",
+          });
+          return;
+        }
 
-  // ✅ If end is before start → assume next day
-  if (end <= start) {
-    end.setDate(end.getDate() + 1);
-  }
-
-  // ❌ Still invalid (safety check - extremely rare)
-  if (end <= start) {
-    ctx.addIssue({
-      path: ["eventDays", i, "endTime"],
-      code: "custom",
-      message: "Invalid event time range"
-    });
-  }
-
-  // ❌ Prevent weird long durations (optional but professional)
-  const diffHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-
-  if (diffHours > 24) {
-    ctx.addIssue({
-      path: ["eventDays", i, "endTime"],
-      code: "custom",
-      message: "Event duration too long"
-    });
-  }
-}
+        const diffHours = (range.end.getTime() - range.start.getTime()) / (1000 * 60 * 60);
+        if (diffHours > 24) {
+          ctx.addIssue({
+            path: ["eventDays", i, "endTime"],
+            code: "custom",
+            message: "Session cannot exceed 24 hours",
+          });
+        }
+      }
     });
 
-    // ================= OVERLAPPING CHECK =================
+    // Overlap check (uses overnight-adjusted ranges)
     data.eventDays.forEach((day1, i) => {
-      if (!day1.date || !day1.startTime || !day1.endTime) return;
-
-      const start1 = combineDateTime(day1.date, day1.startTime);
-      const end1 = combineDateTime(day1.date, day1.endTime);
+      const r1 = resolveEventDayRange(day1);
+      if (!r1) return;
 
       data.eventDays.forEach((day2, j) => {
-        if (i === j || !day2.date || !day2.startTime || !day2.endTime) return;
+        if (i >= j) return;
+        const r2 = resolveEventDayRange(day2);
+        if (!r2) return;
 
         if (day1.date === day2.date) {
-          const start2 = combineDateTime(day2.date, day2.startTime);
-          const end2 = combineDateTime(day2.date, day2.endTime);
-
-          const overlap = start1 < end2 && end1 > start2;
-
+          const overlap = r1.start < r2.end && r1.end > r2.start;
           if (overlap) {
             ctx.addIssue({
               path: ["eventDays", i, "startTime"],
               code: "custom",
-              message: "Event time overlaps with another slot"
+              message: `Time overlaps with Day ${j + 1}`,
             });
           }
         }
       });
     });
 
-    // ================= PRICE =================
+    const schedule = getEventScheduleBounds(data.eventDays);
+
+    if (data.registrationStart && data.registrationDeadline) {
+      const regStart = new Date(data.registrationStart);
+      const regEnd = new Date(data.registrationDeadline);
+
+      if (Number.isNaN(regStart.getTime())) {
+        ctx.addIssue({
+          path: ["registrationStart"],
+          code: "custom",
+          message: "Invalid registration opening date",
+        });
+      }
+      if (Number.isNaN(regEnd.getTime())) {
+        ctx.addIssue({
+          path: ["registrationDeadline"],
+          code: "custom",
+          message: "Invalid registration closing date",
+        });
+      }
+
+      if (!Number.isNaN(regStart.getTime()) && !Number.isNaN(regEnd.getTime()) && regEnd <= regStart) {
+        ctx.addIssue({
+          path: ["registrationDeadline"],
+          code: "custom",
+          message: "Registration must close after it opens",
+        });
+        ctx.addIssue({
+          path: ["registrationStart"],
+          code: "custom",
+          message: "Registration must open before it closes",
+        });
+      }
+    }
+
+    if (schedule) {
+      if (data.registrationStart) {
+        const regStart = new Date(data.registrationStart);
+        if (!Number.isNaN(regStart.getTime()) && regStart > schedule.lastEnd) {
+          ctx.addIssue({
+            path: ["registrationStart"],
+            code: "custom",
+            message: "Registration cannot open after the event has ended",
+          });
+        }
+      }
+
+      if (data.registrationDeadline) {
+        const regEnd = new Date(data.registrationDeadline);
+        if (!Number.isNaN(regEnd.getTime()) && regEnd > schedule.lastEnd) {
+          ctx.addIssue({
+            path: ["registrationDeadline"],
+            code: "custom",
+            message: "Registration cannot close after the event has ended",
+          });
+        }
+      }
+    }
+
     if (!data.isPaid) {
       if (data.price > 0 || data.investorPrice > 0 || data.guestPrice > 0) {
         ctx.addIssue({ path: ["price"], code: "custom", message: "Free event should not have pricing" });
@@ -195,7 +222,11 @@ export const eventSchema = z
         ctx.addIssue({ path: ["guestPrice"], code: "custom", message: "Enter guest price" });
       }
       if (data.guestPaymentEnabled && data.freeGuestCount > data.maxPerUser) {
-        ctx.addIssue({ path: ["freeGuestCount"], code: "custom", message: "Free guest count exceeds max per registration" });
+        ctx.addIssue({
+          path: ["freeGuestCount"],
+          code: "custom",
+          message: "Free guest count exceeds max per registration",
+        });
       }
     }
 
@@ -204,60 +235,40 @@ export const eventSchema = z
       ctx.addIssue({ path: ["price"], code: "custom", message: "Price is too high" });
     }
 
-    // ================= GUEST =================
     if (!data.allowGuests && data.maxPerUser > 1) {
       ctx.addIssue({
         path: ["maxPerUser"],
         code: "custom",
-        message: "Guests disabled, so max per user must be 1"
+        message: "Guests disabled, so max per user must be 1",
       });
     }
 
-    // ================= REFUND =================
     if (data.isRefundable && !data.isPaid) {
       ctx.addIssue({
         path: ["isRefundable"],
         code: "custom",
-        message: "Free events cannot have refund option"
+        message: "Free events cannot have refund option",
       });
     }
 
-    // ================= LOCATION =================
     if (data.locationType === "online") {
       try {
         const url = new URL(data.location);
-
-        if (!["http:", "https:"].includes(url.protocol)) {
-          throw new Error();
-        }
+        if (!["http:", "https:"].includes(url.protocol)) throw new Error();
       } catch {
         ctx.addIssue({
           path: ["location"],
           code: "custom",
-          message: "Enter a valid secure meeting link (https://...)"
+          message: "Enter a valid secure meeting link (https://...)",
         });
       }
     }
 
-    if (data.locationType === "offline") {
-      if (data.location.length < 5) {
-        ctx.addIssue({
-          path: ["location"],
-          code: "custom",
-          message: "Enter a detailed venue location"
-        });
-      }
-    }
-
-    if (data.registrationStart && data.registrationDeadline) {
-      const start = new Date(data.registrationStart);
-      const end = new Date(data.registrationDeadline);
-      if (end <= start) {
-        ctx.addIssue({
-          path: ["registrationDeadline"],
-          code: "custom",
-          message: "Registration deadline must be after the start date"
-        });
-      }
+    if (data.locationType === "offline" && data.location.length < 5) {
+      ctx.addIssue({
+        path: ["location"],
+        code: "custom",
+        message: "Enter a detailed venue location",
+      });
     }
   });

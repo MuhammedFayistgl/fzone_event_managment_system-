@@ -52,6 +52,10 @@ export function useLivePassSync({
       );
 
       toast.success("Entry confirmed — pass used", { id: "live-checkin" });
+
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate([80, 40, 80]);
+      }
     };
 
     const onBlocked = (payload: RegistrationBlockedPayload) => {

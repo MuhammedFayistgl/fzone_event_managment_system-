@@ -39,6 +39,7 @@ import {
   isPaymentSufficient,
   paymentRequired,
 } from "../utils/pricing";
+import { storePassSessionToken } from "../utils/authRole";
 
 const PAYMENT_SUCCESS_KEY = "payment_success";
 
@@ -247,13 +248,23 @@ export default function EventRegisterPagePro() {
     }
 
     try {
-      const investorRes = await dispatch(
+      let investorRes = await dispatch(
         checkInvestor({ phone: cleaned, eventId: id })
       ).unwrap();
 
       if (!investorRes?.success) {
         setPhoneError("This number is not an investor");
         return;
+      }
+
+      if (investorRes?.registered && !investorRes?.passVerified) {
+        investorRes = await dispatch(
+          registerEvent({ phone: cleaned, eventId: id, guests: [] })
+        ).unwrap();
+      }
+
+      if (investorRes?.passSessionToken && id) {
+        storePassSessionToken(id, cleaned, investorRes.passSessionToken);
       }
 
       setReadyToSubmit(true);

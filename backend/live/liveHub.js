@@ -6,7 +6,7 @@ import { verifyPassSessionToken } from "../utils/passSession.js";
 /** @type {import("socket.io").Server | null} */
 let io = null;
 
-const STAFF_ROLES = new Set(["admin", "scanner", "finance"]);
+const STAFF_ROLES = new Set(["super_admin", "admin", "scanner", "finance"]);
 
 export function eventRoomId(eventId) {
   return `event:${String(eventId)}`;
