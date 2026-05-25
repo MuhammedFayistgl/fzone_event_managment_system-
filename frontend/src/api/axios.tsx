@@ -69,7 +69,11 @@ API.interceptors.response.use(
       return Promise.reject(err);
     }
 
-    if (originalRequest.url?.includes("/admin/refresh")) {
+    if (
+      originalRequest.url?.includes("/admin/refresh") ||
+      originalRequest.url?.includes("/admin/login") ||
+      originalRequest.url?.includes("/admin/signup")
+    ) {
       return Promise.reject(err);
     }
 
