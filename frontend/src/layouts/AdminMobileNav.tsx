@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Drawer } from "rsuite";
-import { ChevronRight, Moon, Sun, LogOut } from "lucide-react";
+import { ChevronRight, Moon, Sun, LogOut, X } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "../hooks/hooks";
 import { toggleTheme } from "../redux/store/slices/themeSlice";
 import { NAV_GROUP_LABELS, isNavItemActive } from "../config/adminNavigation";
@@ -37,14 +37,33 @@ export default function AdminMobileNav({ open, onClose }: AdminMobileNavProps) {
   };
 
   return (
-    <Drawer open={open} onClose={onClose} placement="left" size="xs" className="admin-mobile-nav">
+    <Drawer
+      open={open}
+      onClose={onClose}
+      placement="left"
+      size="xs"
+      closeButton={false}
+      className="admin-mobile-nav"
+    >
       <Drawer.Header className="admin-mobile-nav__header">
-        <div className="admin-mobile-nav__brand">
-          <img src={logoUrl} alt="" className="admin-mobile-nav__logo" aria-hidden />
-          <div className="admin-mobile-nav__brand-copy">
-            <span className="admin-mobile-nav__brand-title">F-Zone</span>
-            <span className="admin-mobile-nav__brand-sub">Admin workspace</span>
+        <div className="admin-mobile-nav__header-row">
+          <div className="admin-mobile-nav__brand">
+            <span className="admin-mobile-nav__logo-wrap" aria-hidden>
+              <img src={logoUrl} alt="" className="admin-mobile-nav__logo" />
+            </span>
+            <div className="admin-mobile-nav__brand-copy">
+              <span className="admin-mobile-nav__brand-title">F-Zone</span>
+              <span className="admin-mobile-nav__brand-sub">Admin workspace</span>
+            </div>
           </div>
+          <button
+            type="button"
+            className="admin-mobile-nav__close"
+            onClick={onClose}
+            aria-label="Close menu"
+          >
+            <X size={18} />
+          </button>
         </div>
       </Drawer.Header>
       <Drawer.Body className="admin-mobile-nav__body">
