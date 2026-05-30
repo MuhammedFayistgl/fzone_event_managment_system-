@@ -15,6 +15,10 @@ import { razorpayWebhook } from "./controllers/paymentController.js";
 import { ConnectionDB } from "./server/server.js";
 import cors from "cors";
 import { startPaymentCleanupJob } from "./utils/crone.js";
+import { startUsageMetricsJob } from "./jobs/collectUsageMetrics.js";
+import { apiUsageMiddleware } from "./middleware/apiUsage.middleware.js";
+import { maintenanceGuard } from "./middleware/maintenance.middleware.js";
+import { platformBillingWebhook, getPlatformMaintenancePublic } from "./controllers/platformOpsController.js";
 import authMiddleware from "./middleware/authMiddleware.js";
 import { requireRole } from "./middleware/roleMiddleware.js";
 import { closeRegistration } from "./controllers/registrationController.js";
@@ -100,9 +104,19 @@ app.post(
   razorpayWebhook
 );
 
+app.post(
+  "/admin/platform/billing/webhook",
+  express.raw({ type: "application/json" }),
+  platformBillingWebhook
+);
+
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+app.use(apiUsageMiddleware());
+app.use(maintenanceGuard);
+
+app.get("/user/maintenance-status", getPlatformMaintenancePublic);
 
 app.use(
   cors({
@@ -142,6 +156,7 @@ ConnectionDB()
     console.log("DB connected ✅");
     await ensureTicketBgDir();
     startPaymentCleanupJob();
+    startUsageMetricsJob();
 
     if (!isRedisEnabled()) {
       console.log("Redis disabled — cache off");

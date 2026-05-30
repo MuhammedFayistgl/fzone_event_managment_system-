@@ -77,3 +77,9 @@ export const notificationLimiter = createLimiter(
   60 * 1000,
   parseInt(process.env.RATE_LIMIT_NOTIFICATION_MAX || "60", 10)
 );
+
+/** Registration assistant chat */
+export const assistantChatLimiter = createLimiter(
+  15 * 60 * 1000,
+  parseInt(process.env.RATE_LIMIT_ASSISTANT_MAX || "30", 10)
+);

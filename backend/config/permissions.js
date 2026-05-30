@@ -10,6 +10,8 @@ export const PERMISSION_CATALOG = [
   { key: "payments:refund", label: "Issue refunds", group: "Payments" },
   { key: "settings:write", label: "Edit platform settings", group: "Platform" },
   { key: "audit:read", label: "View audit log", group: "Platform" },
+  { key: "platform:read", label: "View control center & server metrics", group: "Platform" },
+  { key: "platform:write", label: "Manage maintenance, backups & server controls", group: "Platform" },
 ];
 
 export const ALL_PERMISSION_KEYS = PERMISSION_CATALOG.map((p) => p.key);

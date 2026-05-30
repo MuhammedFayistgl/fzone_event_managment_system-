@@ -30,6 +30,9 @@ const WebhooksPage = lazy(() => import("./pages/platform/WebhooksPage"));
 const FinanceReconciliationPage = lazy(
   () => import("./pages/platform/FinanceReconciliationPage")
 );
+const PlatformControlCenterPage = lazy(
+  () => import("./pages/platform/PlatformControlCenterPage")
+);
 const NotificationCenterPage = lazy(
   () => import("./features/notifications/pages/NotificationCenterPage")
 );
@@ -239,6 +242,19 @@ function App() {
             <AdminShell>
               <SuspensePage>
                 <SettingsPage />
+              </SuspensePage>
+            </AdminShell>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/platform/control-center"
+        element={
+          <ProtectedRoute roles={ADMIN_ROLES}>
+            <AdminShell>
+              <SuspensePage>
+                <PlatformControlCenterPage />
               </SuspensePage>
             </AdminShell>
           </ProtectedRoute>

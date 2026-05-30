@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import RegistrationAssistantMount from "../features/registration-assistant/RegistrationAssistantMount";
 
 type Props = {
   children: ReactNode;
@@ -21,6 +22,7 @@ export default function PublicShell({ children, title = "FZone Registration" }: 
         </div>
       </header>
       <main>{children}</main>
+      <RegistrationAssistantMount />
     </div>
   );
 }

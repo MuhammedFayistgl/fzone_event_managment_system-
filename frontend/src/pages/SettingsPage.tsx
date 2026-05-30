@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Moon, Sun, Shield, Bell, Wallet, Webhook, ScrollText } from "lucide-react";
+import { Check, Moon, Sun, Shield, Bell, Wallet, Webhook, ScrollText, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { SelectPicker } from "rsuite";
 import toast from "react-hot-toast";
@@ -54,10 +54,21 @@ function ThemePreview({ mode }: { mode: ThemeMode }) {
   );
 }
 
+type RegistrationAssistantSettings = {
+  enabled: boolean;
+  aiEnabled: boolean;
+  welcomeMessageEn: string;
+  welcomeMessageMl: string;
+  supportPhone: string;
+  supportEmail: string;
+  dailyAiMessageCap: number;
+};
+
 type PlatformSettings = {
   refundAccessPolicy: "active_refunds" | "processed_only";
   gateNames: string[];
   waitlistEnabled: boolean;
+  registrationAssistant: RegistrationAssistantSettings;
   notifications: {
     emailEnabled: boolean;
     smsEnabled: boolean;
@@ -266,6 +277,126 @@ export default function SettingsPage() {
                     setSettings({
                       ...settings,
                       notifications: { ...settings.notifications, smtpFrom: e.target.value },
+                    })
+                  }
+                />
+              </div>
+            </section>
+
+            <section className="app-card p-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <MessageCircle size={18} />
+                <h2 className="text-lg font-semibold">Registration assistant</h2>
+              </div>
+              <p className="text-sm text-app-muted">
+                Floating help chat on public event registration and portal pages. FAQ-first; optional AI when an API key is configured on the server.
+              </p>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={settings.registrationAssistant?.enabled ?? true}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      registrationAssistant: {
+                        ...settings.registrationAssistant,
+                        enabled: e.target.checked,
+                      },
+                    })
+                  }
+                />
+                Enable registration assistant on public pages
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={settings.registrationAssistant?.aiEnabled ?? false}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      registrationAssistant: {
+                        ...settings.registrationAssistant,
+                        aiEnabled: e.target.checked,
+                      },
+                    })
+                  }
+                />
+                Allow AI fallback (requires GEMINI_API_KEY or OPENAI_API_KEY on server)
+              </label>
+              <div className="grid grid-cols-1 gap-3">
+                <textarea
+                  className="event-register-guests__select min-h-[72px]"
+                  placeholder="Welcome message (English)"
+                  value={settings.registrationAssistant?.welcomeMessageEn || ""}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      registrationAssistant: {
+                        ...settings.registrationAssistant,
+                        welcomeMessageEn: e.target.value,
+                      },
+                    })
+                  }
+                />
+                <textarea
+                  className="event-register-guests__select min-h-[72px]"
+                  placeholder="Welcome message (Malayalam)"
+                  value={settings.registrationAssistant?.welcomeMessageMl || ""}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      registrationAssistant: {
+                        ...settings.registrationAssistant,
+                        welcomeMessageMl: e.target.value,
+                      },
+                    })
+                  }
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  className="event-register-guests__select"
+                  placeholder="Support phone"
+                  value={settings.registrationAssistant?.supportPhone || ""}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      registrationAssistant: {
+                        ...settings.registrationAssistant,
+                        supportPhone: e.target.value,
+                      },
+                    })
+                  }
+                />
+                <input
+                  className="event-register-guests__select"
+                  placeholder="Support email"
+                  value={settings.registrationAssistant?.supportEmail || ""}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      registrationAssistant: {
+                        ...settings.registrationAssistant,
+                        supportEmail: e.target.value,
+                      },
+                    })
+                  }
+                />
+              </div>
+              <div className="max-w-xs">
+                <label className="text-xs text-app-muted block mb-1">Daily AI message cap</label>
+                <input
+                  type="number"
+                  min={0}
+                  className="event-register-guests__select w-full"
+                  value={settings.registrationAssistant?.dailyAiMessageCap ?? 200}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      registrationAssistant: {
+                        ...settings.registrationAssistant,
+                        dailyAiMessageCap: Number(e.target.value) || 0,
+                      },
                     })
                   }
                 />

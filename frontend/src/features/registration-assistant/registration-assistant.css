@@ -1,0 +1,209 @@
+.reg-assistant-root {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 9000;
+  font-family: inherit;
+}
+
+.reg-assistant-root--hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(12px);
+}
+
+.reg-assistant-fab {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  background: linear-gradient(135deg, var(--color-accent, #0891b2), #7c3aed);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reg-assistant-panel {
+  position: absolute;
+  right: 0;
+  bottom: 4rem;
+  width: min(22rem, calc(100vw - 2rem));
+  max-height: min(32rem, 70vh);
+  display: flex;
+  flex-direction: column;
+  border-radius: 1rem;
+  border: 1px solid var(--color-border, #e5e7eb);
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #111827);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.reg-assistant-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+  background: var(--color-surface-muted, #f9fafb);
+}
+
+.reg-assistant-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.reg-assistant-header button {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.reg-assistant-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.reg-assistant-msg {
+  max-width: 92%;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.reg-assistant-msg p {
+  margin: 0;
+}
+
+.reg-assistant-msg--user {
+  align-self: flex-end;
+  background: var(--color-accent, #0891b2);
+  color: #fff;
+}
+
+.reg-assistant-msg--assistant {
+  align-self: flex-start;
+  background: var(--color-surface-muted, #f3f4f6);
+  border: 1px solid var(--color-border, #e5e7eb);
+}
+
+.reg-assistant-msg__meta {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.65rem;
+  opacity: 0.6;
+  text-transform: uppercase;
+}
+
+.reg-assistant-typing {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  min-height: 2rem;
+}
+
+.reg-assistant-typing span {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--color-muted, #9ca3af);
+  animation: reg-assistant-bounce 1s infinite ease-in-out;
+}
+
+.reg-assistant-typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.reg-assistant-typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes reg-assistant-bounce {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  40% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+.reg-assistant-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0 0.75rem 0.5rem;
+}
+
+.reg-assistant-chips button {
+  font-size: 0.72rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.reg-assistant-composer {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.65rem;
+  border-top: 1px solid var(--color-border, #e5e7eb);
+}
+
+.reg-assistant-composer input {
+  flex: 1;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  background: var(--color-base, #fff);
+  color: inherit;
+  font-size: 0.875rem;
+}
+
+.reg-assistant-composer button {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.6rem;
+  border: none;
+  background: var(--color-accent, #0891b2);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reg-assistant-footer {
+  padding: 0.35rem 0.75rem 0.55rem;
+  font-size: 0.65rem;
+  color: var(--color-muted, #6b7280);
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .reg-assistant-root {
+    right: 0.75rem;
+    left: 0.75rem;
+  }
+
+  .reg-assistant-panel {
+    width: 100%;
+    max-height: 75vh;
+  }
+}

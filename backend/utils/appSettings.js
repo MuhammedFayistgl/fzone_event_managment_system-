@@ -1,4 +1,9 @@
 import OrgSettings from "../models/orgSettingsModel.js";
+import {
+  DEFAULT_PLATFORM_SETTINGS,
+  getPlanLimits,
+} from "../constants/platformPlans.js";
+import { DEFAULT_ASSISTANT } from "../constants/registrationAssistant.js";
 
 const DEFAULTS = {
   key: "default",
@@ -17,11 +22,28 @@ const DEFAULTS = {
     twilioFromNumber: "",
   },
   waitlistEnabled: false,
+  registrationAssistant: { ...DEFAULT_ASSISTANT },
+  platform: {
+    ...DEFAULT_PLATFORM_SETTINGS,
+    planLimits: getPlanLimits("free"),
+  },
 };
 
 let cached = null;
 let cachedAt = 0;
 const CACHE_MS = 30_000;
+
+function mergePlatform(docPlatform = {}) {
+  const plan = docPlatform.plan || "free";
+  return {
+    ...DEFAULTS.platform,
+    ...docPlatform,
+    planLimits: {
+      ...getPlanLimits(plan),
+      ...(docPlatform.planLimits || {}),
+    },
+  };
+}
 
 export async function getOrgSettings(force = false) {
   const now = Date.now();
@@ -39,6 +61,11 @@ export async function getOrgSettings(force = false) {
     ...doc,
     notifications: { ...DEFAULTS.notifications, ...(doc.notifications || {}) },
     gateNames: doc.gateNames?.length ? doc.gateNames : DEFAULTS.gateNames,
+    registrationAssistant: {
+      ...DEFAULTS.registrationAssistant,
+      ...(doc.registrationAssistant || {}),
+    },
+    platform: mergePlatform(doc.platform),
   };
   cachedAt = now;
   return cached;
@@ -50,11 +77,28 @@ export async function updateOrgSettings(patch = {}) {
   if (patch.refundAccessPolicy) update.refundAccessPolicy = patch.refundAccessPolicy;
   if (Array.isArray(patch.gateNames)) update.gateNames = patch.gateNames.filter(Boolean);
   if (typeof patch.waitlistEnabled === "boolean") update.waitlistEnabled = patch.waitlistEnabled;
+  if (patch.registrationAssistant && typeof patch.registrationAssistant === "object") {
+    for (const [key, value] of Object.entries(patch.registrationAssistant)) {
+      update[`registrationAssistant.${key}`] = value;
+    }
+  }
   if (patch.notifications && typeof patch.notifications === "object") {
     update.notifications = patch.notifications;
   }
 
-  const doc = await OrgSettings.findOneAndUpdate(
+  if (patch.platform && typeof patch.platform === "object") {
+    for (const [key, value] of Object.entries(patch.platform)) {
+      if (key === "planLimits" && value && typeof value === "object") {
+        for (const [limitKey, limitVal] of Object.entries(value)) {
+          update[`platform.planLimits.${limitKey}`] = limitVal;
+        }
+      } else {
+        update[`platform.${key}`] = value;
+      }
+    }
+  }
+
+  await OrgSettings.findOneAndUpdate(
     { key: "default" },
     { $set: update },
     { upsert: true, new: true, setDefaultsOnInsert: true }

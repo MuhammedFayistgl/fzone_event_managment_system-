@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Drawer } from "rsuite";
-import { Moon, Sun, LogOut } from "lucide-react";
+import { ChevronRight, Moon, Sun, LogOut } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "../hooks/hooks";
 import { toggleTheme } from "../redux/store/slices/themeSlice";
 import { NAV_GROUP_LABELS, isNavItemActive } from "../config/adminNavigation";
 import { useAdminNavigation } from "../hooks/useAdminNavigation";
 import { useAdminLogout } from "../hooks/useAdminLogout";
+import logoUrl from "../assets/F-zone logo only_ png.svg";
 
 type AdminMobileNavProps = {
   open: boolean;
@@ -37,12 +38,22 @@ export default function AdminMobileNav({ open, onClose }: AdminMobileNavProps) {
 
   return (
     <Drawer open={open} onClose={onClose} placement="left" size="xs" className="admin-mobile-nav">
-      <Drawer.Header>
-        <Drawer.Title>Menu</Drawer.Title>
+      <Drawer.Header className="admin-mobile-nav__header">
+        <div className="admin-mobile-nav__brand">
+          <img src={logoUrl} alt="" className="admin-mobile-nav__logo" aria-hidden />
+          <div className="admin-mobile-nav__brand-copy">
+            <span className="admin-mobile-nav__brand-title">F-Zone</span>
+            <span className="admin-mobile-nav__brand-sub">Admin workspace</span>
+          </div>
+        </div>
       </Drawer.Header>
-      <Drawer.Body>
+      <Drawer.Body className="admin-mobile-nav__body">
         {loading ? (
-          <p className="text-sm text-app-muted px-3 py-2">Loading menu…</p>
+          <div className="admin-mobile-nav__loading" aria-busy="true">
+            <span className="admin-mobile-nav__loading-bar" />
+            <span className="admin-mobile-nav__loading-bar admin-mobile-nav__loading-bar--short" />
+            <span className="admin-mobile-nav__loading-bar" />
+          </div>
         ) : (
           <nav className="admin-mobile-nav__groups" aria-label="Mobile navigation">
             {visibleGroups.map(({ group, items }) => (
@@ -51,6 +62,7 @@ export default function AdminMobileNav({ open, onClose }: AdminMobileNavProps) {
                 <ul className="admin-mobile-nav__list">
                   {items.map((item) => {
                     const active = isNavItemActive(location.pathname, item);
+                    const Icon = item.icon;
                     return (
                       <li key={item.id}>
                         <button
@@ -59,7 +71,13 @@ export default function AdminMobileNav({ open, onClose }: AdminMobileNavProps) {
                           onClick={() => goTo(item.path)}
                           aria-current={active ? "page" : undefined}
                         >
-                          {item.label}
+                          <span className="admin-mobile-nav__icon-well" aria-hidden>
+                            <Icon className="admin-mobile-nav__icon" strokeWidth={2} />
+                          </span>
+                          <span className="admin-mobile-nav__link-label">{item.label}</span>
+                          {active && (
+                            <ChevronRight className="admin-mobile-nav__chevron" size={16} aria-hidden />
+                          )}
                         </button>
                       </li>
                     );
@@ -76,7 +94,9 @@ export default function AdminMobileNav({ open, onClose }: AdminMobileNavProps) {
             className="admin-mobile-nav__action"
             onClick={() => dispatch(toggleTheme())}
           >
-            {themeMode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            <span className="admin-mobile-nav__icon-well admin-mobile-nav__icon-well--muted" aria-hidden>
+              {themeMode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            </span>
             {themeMode === "dark" ? "Light mode" : "Dark mode"}
           </button>
           <button
@@ -87,7 +107,9 @@ export default function AdminMobileNav({ open, onClose }: AdminMobileNavProps) {
               logOut();
             }}
           >
-            <LogOut size={18} />
+            <span className="admin-mobile-nav__icon-well admin-mobile-nav__icon-well--danger" aria-hidden>
+              <LogOut size={18} />
+            </span>
             Sign out
           </button>
         </div>

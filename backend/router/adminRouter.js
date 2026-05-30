@@ -78,7 +78,36 @@ import {
   getGateNames,
 } from "../controllers/platformController.js";
 
+import {
+  getPlatformOpsOverview,
+  getPlatformOpsMetrics,
+  getPlatformOpsLogs,
+  getPlatformOpsDeployment,
+  patchPlatformMaintenance,
+  getPlatformBillingPlans,
+  getPlatformBillingOverview,
+  postPlatformSubscribe,
+  postPlatformPause,
+  postPlatformResume,
+  postPlatformCancel,
+  getPlatformInvoices,
+  postPlatformRetryPayment,
+  postPlatformConfirmPayment,
+  patchPlatformAutoRenew,
+  getPlatformAnalytics,
+  postPlatformBackup,
+  getPlatformBackups,
+  postPlatformRestore,
+  postPlatformRestart,
+} from "../controllers/platformOpsController.js";
+
+import {
+  getAssistantLogsHandler,
+  getAssistantSummaryHandler,
+} from "../controllers/registrationAssistantController.js";
+
 import { ticketBackgroundUpload } from "../middleware/ticketUpload.middleware.js";
+import { usageLimitGuard } from "../middleware/usageLimit.middleware.js";
 import { notificationLimiter } from "../middleware/rateLimit.middleware.js";
 import {
   archiveNotificationHandler,
@@ -139,6 +168,8 @@ const permRegistrationsRead = requirePermissionOrRole("registrations:read", "sca
 const permRegistrationsWrite = requirePermission("registrations:write");
 const permSettingsWrite = requirePermission("settings:write");
 const permAuditRead = requirePermission("audit:read");
+const permPlatformRead = requirePermissionOrRole("platform:read", "super_admin");
+const permPlatformWrite = requirePermission("platform:write");
 
 // ================= PUBLIC (auth) =================
 router.post("/login", authLimiter, loginAdmin);
@@ -204,6 +235,7 @@ router.post(
   "/events/:id/ticket-background",
   ...protectStaff,
   permEventsWrite,
+  usageLimitGuard("storage"),
   ticketBackgroundUpload.single("background"),
   uploadTicketBackground
 );
@@ -261,6 +293,30 @@ router.post("/platform/reconciliation/export", ...protectFinance, exportReconcil
 router.post("/platform/reconciliation/transactions/:id/resolve", ...protectFinance, resolveReconciliationTransaction);
 router.get("/platform/waitlist", ...protectStaff, permSettingsWrite, getWaitlist);
 router.get("/platform/gates", ...protectScanner, getGateNames);
+
+// Platform Control Center
+router.get("/platform/ops/overview", ...protectStaff, permPlatformRead, getPlatformOpsOverview);
+router.get("/platform/ops/metrics", ...protectStaff, permPlatformRead, getPlatformOpsMetrics);
+router.get("/platform/ops/logs", ...protectStaff, permPlatformRead, getPlatformOpsLogs);
+router.get("/platform/ops/deployment", ...protectStaff, permPlatformRead, getPlatformOpsDeployment);
+router.patch("/platform/ops/maintenance", ...protectSuperAdmin, permPlatformWrite, patchPlatformMaintenance);
+router.get("/platform/billing/plans", ...protectStaff, permPlatformRead, getPlatformBillingPlans);
+router.get("/platform/billing/overview", ...protectStaff, permPlatformRead, getPlatformBillingOverview);
+router.post("/platform/billing/subscribe", ...protectSuperAdmin, permPlatformWrite, postPlatformSubscribe);
+router.post("/platform/billing/pause", ...protectSuperAdmin, permPlatformWrite, postPlatformPause);
+router.post("/platform/billing/resume", ...protectSuperAdmin, permPlatformWrite, postPlatformResume);
+router.post("/platform/billing/cancel", ...protectSuperAdmin, permPlatformWrite, postPlatformCancel);
+router.patch("/platform/billing/auto-renew", ...protectSuperAdmin, permPlatformWrite, patchPlatformAutoRenew);
+router.get("/platform/billing/invoices", ...protectStaff, permPlatformRead, getPlatformInvoices);
+router.post("/platform/billing/invoices/:id/retry", ...protectSuperAdmin, permPlatformWrite, postPlatformRetryPayment);
+router.post("/platform/billing/confirm-payment", ...protectSuperAdmin, permPlatformWrite, postPlatformConfirmPayment);
+router.get("/platform/analytics", ...protectStaff, permPlatformRead, getPlatformAnalytics);
+router.get("/platform/assistant/logs", ...protectStaff, permPlatformRead, getAssistantLogsHandler);
+router.get("/platform/assistant/summary", ...protectStaff, permPlatformRead, getAssistantSummaryHandler);
+router.post("/platform/server/backup", ...protectSuperAdmin, permPlatformWrite, postPlatformBackup);
+router.get("/platform/server/backups", ...protectSuperAdmin, permPlatformRead, getPlatformBackups);
+router.post("/platform/server/restore", ...protectSuperAdmin, permPlatformWrite, postPlatformRestore);
+router.post("/platform/server/restart", ...protectSuperAdmin, permPlatformWrite, postPlatformRestart);
 
 // Notifications (staff inbox)
 router.get("/notifications/unread-count", ...protectStaff, notificationLimiter, getUnreadCountHandler);

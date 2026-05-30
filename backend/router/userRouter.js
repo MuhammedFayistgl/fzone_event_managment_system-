@@ -19,7 +19,12 @@ import {
   registrationLimiter,
   registrationActionLimiter,
   publicEventLimiter,
+  assistantChatLimiter,
 } from "../middleware/rateLimit.middleware.js";
+import {
+  getAssistantConfigHandler,
+  postAssistantChatHandler,
+} from "../controllers/registrationAssistantController.js";
 
 const router = express.Router();
 
@@ -35,5 +40,8 @@ router.post("/paymentFailed", paymentFailedLimiter, markPaymentFailed);
 router.post("/check-payment-status", registrationActionLimiter, getPaymentStatus);
 
 router.post("/GetOneEventById/:id", publicEventLimiter, GetOneEventById);
+
+router.get("/assistant/config", publicEventLimiter, getAssistantConfigHandler);
+router.post("/assistant/chat", assistantChatLimiter, postAssistantChatHandler);
 
 export default router;

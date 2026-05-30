@@ -12,6 +12,7 @@ import {
   ScrollText,
   Webhook,
   Bell,
+  Server,
   Settings,
 } from "lucide-react";
 import type { PermissionKey } from "../utils/authRole";
@@ -132,6 +133,17 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     roles: ["super_admin", "admin", "finance"],
     icon: Scale,
     overviewQuick: true,
+  },
+  {
+    id: "control-center",
+    label: "Control Center",
+    path: "/platform/control-center",
+    group: "platform",
+    roles: ["super_admin", "admin"],
+    permission: "platform:read",
+    icon: Server,
+    overviewQuick: true,
+    hint: "Server, MongoDB, usage & billing",
   },
   {
     id: "audit-log",

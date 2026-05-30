@@ -208,3 +208,12 @@ export function emitNotificationUpdated({
     emitToRooms([passUserRoomId(recipientId)], "notification:updated", payload);
   }
 }
+
+export function getLiveIo() {
+  return io;
+}
+
+export function getOnlineConnectionCount() {
+  if (!io) return 0;
+  return io.engine?.clientsCount ?? io.sockets?.sockets?.size ?? 0;
+}

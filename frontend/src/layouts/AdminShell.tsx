@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Header from "../Header/Header";
 import AdminSidebar from "./AdminSidebar";
+import MaintenanceBanner from "../components/MaintenanceBanner";
 import { useAppSelector } from "../hooks/hooks";
 
 type Props = {
@@ -25,6 +26,7 @@ export default function AdminShell({
         <AdminSidebar />
         <div className="admin-shell__main flex flex-1 flex-col min-w-0">
           {showHeader && <Header />}
+          <MaintenanceBanner />
           <main className="flex-1 min-w-0">{children}</main>
         </div>
       </div>
