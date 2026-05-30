@@ -45,28 +45,29 @@ export default function AdminMobileNav({ open, onClose }: AdminMobileNavProps) {
       closeButton={false}
       className="admin-mobile-nav"
     >
-      <Drawer.Header className="admin-mobile-nav__header">
-        <div className="admin-mobile-nav__header-row">
-          <div className="admin-mobile-nav__brand">
-            <span className="admin-mobile-nav__logo-wrap" aria-hidden>
-              <img src={logoUrl} alt="" className="admin-mobile-nav__logo" />
-            </span>
-            <div className="admin-mobile-nav__brand-copy">
-              <span className="admin-mobile-nav__brand-title">F-Zone</span>
-              <span className="admin-mobile-nav__brand-sub">Admin workspace</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="admin-mobile-nav__close"
-            onClick={onClose}
-            aria-label="Close menu"
-          >
-            <X size={18} />
-          </button>
-        </div>
-      </Drawer.Header>
       <Drawer.Body className="admin-mobile-nav__body">
+        <div className="admin-mobile-nav__header">
+          <div className="admin-mobile-nav__header-row">
+            <div className="admin-mobile-nav__brand">
+              <span className="admin-mobile-nav__logo-wrap" aria-hidden>
+                <img src={logoUrl} alt="" className="admin-mobile-nav__logo" />
+              </span>
+              <div className="admin-mobile-nav__brand-copy">
+                <span className="admin-mobile-nav__brand-title">F-Zone</span>
+                <span className="admin-mobile-nav__brand-sub">Admin workspace</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="admin-mobile-nav__close"
+              onClick={onClose}
+              aria-label="Close menu"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
         {loading ? (
           <div className="admin-mobile-nav__loading" aria-busy="true">
             <span className="admin-mobile-nav__loading-bar" />

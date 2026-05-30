@@ -32,6 +32,21 @@ const DEFAULTS = {
 let cached = null;
 let cachedAt = 0;
 const CACHE_MS = 30_000;
+const MASKED_SECRET = "********";
+
+function mergeNotifications(existing = {}, patch = {}) {
+  const merged = { ...DEFAULTS.notifications, ...existing, ...patch };
+
+  if (!patch.smtpPass || patch.smtpPass === MASKED_SECRET) {
+    merged.smtpPass = existing.smtpPass ?? DEFAULTS.notifications.smtpPass;
+  }
+  if (!patch.twilioAuthToken || patch.twilioAuthToken === MASKED_SECRET) {
+    merged.twilioAuthToken =
+      existing.twilioAuthToken ?? DEFAULTS.notifications.twilioAuthToken;
+  }
+
+  return merged;
+}
 
 function mergePlatform(docPlatform = {}) {
   const plan = docPlatform.plan || "free";
@@ -83,7 +98,9 @@ export async function updateOrgSettings(patch = {}) {
     }
   }
   if (patch.notifications && typeof patch.notifications === "object") {
-    update.notifications = patch.notifications;
+    const doc = await OrgSettings.findOne({ key: "default" }).lean();
+    const existing = { ...DEFAULTS.notifications, ...(doc?.notifications || {}) };
+    update.notifications = mergeNotifications(existing, patch.notifications);
   }
 
   if (patch.platform && typeof patch.platform === "object") {

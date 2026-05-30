@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Moon, Sun, Shield, Bell, Wallet, Webhook, ScrollText, MessageCircle } from "lucide-react";
+import { Check, Moon, Sun, Shield, Bell, Wallet, Webhook, ScrollText, MessageCircle, Server, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { SelectPicker } from "rsuite";
 import toast from "react-hot-toast";
@@ -95,6 +95,42 @@ const PICKER_PROPS = {
   cleanable: false,
 } as const;
 
+const MASKED_SECRET = "********";
+
+type AssistantSummary = {
+  total: number;
+  today: number;
+  week: number;
+  faqMissRate: number;
+  aiToday: number;
+  bySource: { faq: number; ai: number; fallback: number };
+};
+
+function normalizeSettingsFromApi(data: PlatformSettings): PlatformSettings {
+  return {
+    ...data,
+    notifications: {
+      ...data.notifications,
+      smtpPass: "",
+      twilioAuthToken: "",
+    },
+  };
+}
+
+function buildSettingsSavePayload(settings: PlatformSettings) {
+  const { smtpPass, twilioAuthToken, ...notificationsRest } = settings.notifications;
+  const notifications: Record<string, unknown> = { ...notificationsRest };
+
+  if (smtpPass && smtpPass !== MASKED_SECRET) {
+    notifications.smtpPass = smtpPass;
+  }
+  if (twilioAuthToken && twilioAuthToken !== MASKED_SECRET) {
+    notifications.twilioAuthToken = twilioAuthToken;
+  }
+
+  return { ...settings, notifications };
+}
+
 export default function SettingsPage() {
   const dispatch = useAppDispatch();
   const current = useAppSelector((s) => s.theme.mode);
@@ -102,23 +138,50 @@ export default function SettingsPage() {
   const isAdminUser = role === "admin" || role === "super_admin";
   const canEditSettings = isSuperAdmin || hasPermission("settings:write");
   const canViewAudit = isSuperAdmin || hasPermission("audit:read");
+  const canViewPlatform = isSuperAdmin || hasPermission("platform:read");
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
   const [gateInput, setGateInput] = useState("");
+  const [editingGate, setEditingGate] = useState<string | null>(null);
+  const [gateRenameValue, setGateRenameValue] = useState("");
+  const [secretsConfigured, setSecretsConfigured] = useState({ smtp: false, twilio: false });
+  const [assistantSummary, setAssistantSummary] = useState<AssistantSummary | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!canEditSettings) return;
     API.get("/admin/platform/settings")
-      .then((res) => setSettings(res.data?.data || null))
+      .then((res) => {
+        const data = res.data?.data as PlatformSettings | undefined;
+        if (!data) return;
+        setSecretsConfigured({
+          smtp: data.notifications?.smtpPass === MASKED_SECRET,
+          twilio: data.notifications?.twilioAuthToken === MASKED_SECRET,
+        });
+        setSettings(normalizeSettingsFromApi(data));
+      })
       .catch(() => toast.error("Could not load platform settings"));
   }, [canEditSettings]);
+
+  useEffect(() => {
+    if (!canViewPlatform) return;
+    API.get("/admin/platform/assistant/summary")
+      .then((res) => setAssistantSummary(res.data?.data || null))
+      .catch(() => {});
+  }, [canViewPlatform]);
 
   const saveSettings = async () => {
     if (!settings) return;
     setSaving(true);
     try {
-      const res = await API.patch("/admin/platform/settings", settings);
-      setSettings(res.data?.data || settings);
+      const res = await API.patch("/admin/platform/settings", buildSettingsSavePayload(settings));
+      const data = res.data?.data as PlatformSettings | undefined;
+      if (data) {
+        setSecretsConfigured({
+          smtp: secretsConfigured.smtp || Boolean(settings.notifications.smtpPass),
+          twilio: secretsConfigured.twilio || Boolean(settings.notifications.twilioAuthToken),
+        });
+        setSettings(normalizeSettingsFromApi(data));
+      }
       toast.success("Platform settings saved");
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to save settings");
@@ -133,6 +196,42 @@ export default function SettingsPage() {
     if (settings.gateNames.includes(name)) return;
     setSettings({ ...settings, gateNames: [...settings.gateNames, name] });
     setGateInput("");
+  };
+
+  const removeGate = (name: string) => {
+    if (!settings) return;
+    setSettings({
+      ...settings,
+      gateNames: settings.gateNames.filter((gate) => gate !== name),
+    });
+    if (editingGate === name) {
+      setEditingGate(null);
+      setGateRenameValue("");
+    }
+  };
+
+  const startRenameGate = (name: string) => {
+    setEditingGate(name);
+    setGateRenameValue(name);
+  };
+
+  const commitRenameGate = () => {
+    if (!settings || !editingGate) return;
+    const next = gateRenameValue.trim();
+    if (!next) {
+      setEditingGate(null);
+      return;
+    }
+    if (next !== editingGate && settings.gateNames.includes(next)) {
+      toast.error("Gate name already exists");
+      return;
+    }
+    setSettings({
+      ...settings,
+      gateNames: settings.gateNames.map((gate) => (gate === editingGate ? next : gate)),
+    });
+    setEditingGate(null);
+    setGateRenameValue("");
   };
 
   return (
@@ -270,7 +369,50 @@ export default function SettingsPage() {
                   }
                 />
                 <input
+                  type="number"
+                  min={1}
                   className="event-register-guests__select"
+                  placeholder="SMTP port (587)"
+                  value={settings.notifications.smtpPort || ""}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      notifications: {
+                        ...settings.notifications,
+                        smtpPort: Number(e.target.value) || 587,
+                      },
+                    })
+                  }
+                />
+                <input
+                  className="event-register-guests__select"
+                  placeholder="SMTP username"
+                  value={settings.notifications.smtpUser}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      notifications: { ...settings.notifications, smtpUser: e.target.value },
+                    })
+                  }
+                />
+                <input
+                  type="password"
+                  className="event-register-guests__select"
+                  placeholder={
+                    secretsConfigured.smtp
+                      ? "SMTP password (configured — leave blank to keep)"
+                      : "SMTP password"
+                  }
+                  value={settings.notifications.smtpPass}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      notifications: { ...settings.notifications, smtpPass: e.target.value },
+                    })
+                  }
+                />
+                <input
+                  className="event-register-guests__select md:col-span-2"
                   placeholder="SMTP from address"
                   value={settings.notifications.smtpFrom}
                   onChange={(e) =>
@@ -280,6 +422,58 @@ export default function SettingsPage() {
                     })
                   }
                 />
+              </div>
+              <div className="border-t border-app-border pt-4">
+                <p className="text-xs text-app-muted mb-3">Twilio SMS credentials</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input
+                    className="event-register-guests__select"
+                    placeholder="Twilio Account SID"
+                    value={settings.notifications.twilioAccountSid}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        notifications: {
+                          ...settings.notifications,
+                          twilioAccountSid: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                  <input
+                    type="password"
+                    className="event-register-guests__select"
+                    placeholder={
+                      secretsConfigured.twilio
+                        ? "Twilio Auth Token (configured — leave blank to keep)"
+                        : "Twilio Auth Token"
+                    }
+                    value={settings.notifications.twilioAuthToken}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        notifications: {
+                          ...settings.notifications,
+                          twilioAuthToken: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                  <input
+                    className="event-register-guests__select md:col-span-2"
+                    placeholder="Twilio from number (E.164, e.g. +14155551234)"
+                    value={settings.notifications.twilioFromNumber}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        notifications: {
+                          ...settings.notifications,
+                          twilioFromNumber: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                </div>
               </div>
             </section>
 
@@ -401,14 +595,81 @@ export default function SettingsPage() {
                   }
                 />
               </div>
+              {canViewPlatform && assistantSummary && (
+                <div className="border-t border-app-border pt-4 space-y-2">
+                  <p className="text-xs font-medium text-app-muted uppercase tracking-wide">
+                    Assistant insights (last 7 days)
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="rounded-lg bg-app-surface-muted border border-app-border p-3">
+                      <p className="text-xs text-app-muted">Today</p>
+                      <p className="text-lg font-semibold">{assistantSummary.today}</p>
+                    </div>
+                    <div className="rounded-lg bg-app-surface-muted border border-app-border p-3">
+                      <p className="text-xs text-app-muted">This week</p>
+                      <p className="text-lg font-semibold">{assistantSummary.week}</p>
+                    </div>
+                    <div className="rounded-lg bg-app-surface-muted border border-app-border p-3">
+                      <p className="text-xs text-app-muted">AI today</p>
+                      <p className="text-lg font-semibold">{assistantSummary.aiToday}</p>
+                    </div>
+                    <div className="rounded-lg bg-app-surface-muted border border-app-border p-3">
+                      <p className="text-xs text-app-muted">FAQ miss rate</p>
+                      <p className="text-lg font-semibold">{assistantSummary.faqMissRate}%</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-app-muted">
+                    FAQ {assistantSummary.bySource.faq} · AI {assistantSummary.bySource.ai} · Fallback{" "}
+                    {assistantSummary.bySource.fallback} · All time {assistantSummary.total}
+                  </p>
+                </div>
+              )}
             </section>
 
             <section className="app-card p-5 space-y-4">
               <h2 className="text-lg font-semibold">Gate names</h2>
+              <p className="text-sm text-app-muted">
+                Used on the scanner page gate selector. Click a name to rename; use × to remove.
+              </p>
               <div className="flex flex-wrap gap-2">
                 {settings.gateNames.map((gate) => (
-                  <span key={gate} className="guest-pay-badge guest-pay-badge--paid">
-                    {gate}
+                  <span
+                    key={gate}
+                    className="guest-pay-badge guest-pay-badge--paid inline-flex items-center gap-1 pr-1"
+                  >
+                    {editingGate === gate ? (
+                      <input
+                        className="event-register-guests__select !py-0 !px-1 !min-h-0 text-sm w-28"
+                        value={gateRenameValue}
+                        autoFocus
+                        onChange={(e) => setGateRenameValue(e.target.value)}
+                        onBlur={commitRenameGate}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitRenameGate();
+                          if (e.key === "Escape") {
+                            setEditingGate(null);
+                            setGateRenameValue("");
+                          }
+                        }}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-inherit bg-transparent border-0 cursor-pointer"
+                        onClick={() => startRenameGate(gate)}
+                        title="Click to rename"
+                      >
+                        {gate}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center w-5 h-5 rounded-full hover:bg-black/10 dark:hover:bg-white/10"
+                      onClick={() => removeGate(gate)}
+                      aria-label={`Remove ${gate}`}
+                    >
+                      <X size={12} />
+                    </button>
                   </span>
                 ))}
               </div>
@@ -446,19 +707,33 @@ export default function SettingsPage() {
           </Link>
         </section>
 
-        {canViewAudit && (
+        {(canViewAudit || canViewPlatform) && (
         <section className="app-card p-5 space-y-3">
           <h2 className="text-lg font-semibold">Platform tools</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {canViewPlatform && (
+              <Link
+                to="/platform/control-center"
+                className="app-card p-4 hover:bg-[var(--color-card-hover)] transition"
+              >
+                <Server size={18} className="mb-2 text-app-accent" />
+                <p className="font-semibold">Control Center</p>
+                <p className="text-xs text-app-muted mt-1">Maintenance, billing, server ops</p>
+              </Link>
+            )}
+            {canViewAudit && (
             <Link to="/platform/audit-log" className="app-card p-4 hover:bg-[var(--color-card-hover)] transition">
               <ScrollText size={18} className="mb-2 text-app-accent" />
               <p className="font-semibold">Audit log</p>
             </Link>
+            )}
+            {canViewAudit && (
             <Link to="/platform/webhooks" className="app-card p-4 hover:bg-[var(--color-card-hover)] transition">
               <Webhook size={18} className="mb-2 text-app-accent" />
               <p className="font-semibold">Webhook deliveries</p>
             </Link>
-            {(isSuperAdmin || getRoleFromToken() === "finance") && (
+            )}
+            {canViewAudit && (isSuperAdmin || getRoleFromToken() === "finance") && (
             <Link to="/finance/reconciliation" className="app-card p-4 hover:bg-[var(--color-card-hover)] transition">
               <Wallet size={18} className="mb-2 text-app-accent" />
               <p className="font-semibold">Finance reconciliation</p>
